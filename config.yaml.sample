@@ -1,0 +1,21 @@
+server:
+  address: ''
+  port: 8080
+  max_body_size: 1048576
+elastic:
+  url: 'https://examle.com:8080'
+  username: 'my-username'
+  password: 'my-password'
+security:
+  # if a group/username appears in the list below, then it is allowed to query data for any job,
+  # even if it would otherwise not be accessible by the authorized user
+  allow_any_job:
+    - some_username
+    - some_group
+openid:
+  jwks_url: 'https://auth.example.com/auth/realms/my-realm/protocol/openid-connect/certs'
+  jwks_url_api_gw: 'https://auth.example.com/auth/realms/my-other-realm/protocol/openid-connect/certs'
+clusters:
+  - name: cluster1
+    f7t_url: 'https://api.example.com/firecrest/v2'
+    elastic_name: cluster-1
