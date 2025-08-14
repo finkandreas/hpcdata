@@ -8,6 +8,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 
 	"cscs.ch/hpcdata/elastic"
@@ -62,12 +63,14 @@ func panic_if_no_access(r *http.Request, esclient *elastic.Client, config *util.
 	_, err := validate_jwt(r)
 	pie(logger.Warn, err, "JWT is invalid", http.StatusForbidden)
 
-	jobid := r.URL.Query().Get("jobid")
+	vars := mux.Vars(r)
+
+	jobid := vars["job_id"]
 	if jobid == "" {
 		pie(logger.Warn, herr("The request parameter `jobid` is mandatory", fmt.Sprintf("jobid=`%s`", jobid)), "", http.StatusBadRequest)
 	}
 
-	cluster := r.URL.Query().Get("cluster")
+	cluster := vars["system_name"]
 	if cluster == "" {
 		pie(logger.Warn, herr("The request parameter `cluster` is mandatory", fmt.Sprintf("cluster=`%s`", cluster)), "", http.StatusBadRequest)
 	}
@@ -147,6 +150,9 @@ func (e epochTime) MarshalJSON() ([]byte, error) {
     return fmt.Appendf(nil, "%d", e.Time.Unix()), nil
 }
 func as_epoch_array(in []time.Time) []epochTime {
+	if len(in) == 0 {
+		return []epochTime{}
+	}
 	var t1 time.Time
 	var t2 epochTime
 	if unsafe.Sizeof(t1) != unsafe.Sizeof(t2) {

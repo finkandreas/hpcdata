@@ -42,7 +42,9 @@ func main() {
 	handler.PrepareJwksKeyfunc(config.OpenIdConfig.JwksURL)
 
 	reqHandler := mux.NewRouter()
-	reqHandler.HandleFunc("/capstor/global", handler.GetCapstorGlobalHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/capstor/global", handler.GetCapstorGlobalHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
 	reqHandler.PathPrefix("/").Handler(handler.CatchAllHandler{})
 
 	// install middlewares that
