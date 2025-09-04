@@ -40,18 +40,18 @@ func (h gpuTemperature) Get(w http.ResponseWriter, r *http.Request) {
 	pie(logger.Error, err, "Failed getting GPU temperatures", http.StatusInternalServerError)
 
 
-	type NodesTemperatures struct {
+	type NodeGpuTemperature struct {
 		GpuIndex int `json:"gpu_id"`
-		Temperatures []float64 `json:"temperatures"`
-		Unit string `json:"temperatures_unit"`
+		Temperature []float64 `json:"temperature"`
+		Unit string `json:"temperature_unit"`
 	}
 	ret := struct {
 		Time []epochTime `json:"time"`
-		Nodes map[string][]NodesTemperatures `json:"nodes"`
-	} {as_epoch_array(gpuTemp.Time), map[string][]NodesTemperatures{}}
+		Nodes map[string][]NodeGpuTemperature `json:"nodes"`
+	} {as_epoch_array(gpuTemp.Time), map[string][]NodeGpuTemperature{}}
 	for k,v := range gpuTemp.Temperatures {
-		for _, temps := range v{
-			ret.Nodes[k] = append(ret.Nodes[k], NodesTemperatures{GpuIndex: temps.GpuIndex, Temperatures: temps.Temperatures, Unit: "°C"})
+		for _, temps := range v {
+			ret.Nodes[k] = append(ret.Nodes[k], NodeGpuTemperature{GpuIndex: temps.GpuIndex, Temperature: temps.Temperatures, Unit: "°C"})
 		}
 	}
 
