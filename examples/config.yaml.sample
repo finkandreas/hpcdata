@@ -1,0 +1,4 @@
+base_url: 'http://afws.cscs.ch:8080'
+client_id: <consumer-key>
+client_secret: <consumer-secret>
+token_url: 'https://auth.cscs.ch/auth/realms/firecrest-clients/protocol/openid-connect/token'
