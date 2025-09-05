@@ -3,3 +3,4 @@ examples/config.yaml
 /log
 /hpcdata
 *.swp
+__pycache__
