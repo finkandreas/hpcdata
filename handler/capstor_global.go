@@ -23,7 +23,6 @@ func GetCapstorGlobalHandler(config *util.Config, esclient *elastic.Client) func
 	return wrap(capstorGlobal{config, esclient})
 }
 
-
 func get_job(jobid string, cluster_config *util.ClusterConfig, f7t_client *firecrest.Client, esclient *elastic.Client, config *util.Config, logger *zerolog.Logger) (*util.Job, error) {
 	if job, err := get_job_via_f7t(jobid, f7t_client, logger); err != nil {
 		logger.Warn().Msgf("Failed getting job via firecrest. err=%v", err)
@@ -58,16 +57,18 @@ func get_job_via_f7t(jobid string, f7t_client *firecrest.Client, logger *zerolog
 	}
 }
 
-/* Returns
-{
-	"time": [int] <epoch-time>,
-	"read_bandwidth": []float <average bytes/sec>,
-	"read_iops": []float <average ops/sec>,
-	"write_bandwidth": []float <average bytes/sec>,
-	"write_iops": []float <average ops/sec>,
-	"metadata_ops": []float <average ops/sec>,
-	"nodes_loadavg": [][5]int <number of nodes with 1-min system loadavg [0,20), [20,40), [40,80), [80,160), [160, inf)>,
-}
+/*
+	Returns
+
+	{
+		"time": [int] <epoch-time>,
+		"read_bandwidth": []float <average bytes/sec>,
+		"read_iops": []float <average ops/sec>,
+		"write_bandwidth": []float <average bytes/sec>,
+		"write_iops": []float <average ops/sec>,
+		"metadata_ops": []float <average ops/sec>,
+		"nodes_loadavg": [][5]int <number of nodes with 1-min system loadavg [0,20), [20,40), [40,80), [80,160), [160, inf)>,
+	}
 */
 func (h capstorGlobal) Get(w http.ResponseWriter, r *http.Request) {
 	logger := logging.GetReqLogger(r)
@@ -83,20 +84,20 @@ func (h capstorGlobal) Get(w http.ResponseWriter, r *http.Request) {
 	const unitLoad = "Number of OSS with a 1-min loadavg [[0,20), [20,40), [40,60), [60,80), [80,inf)]"
 
 	ret := struct {
-		Time []epochTime `json:"time"`
-		ReadBytes []float64 `json:"read_bandwidth"`
-		ReadBytesUnit string `json:"read_bandwidth_unit"`
-		ReadIOPS []float64 `json:"read_iops"`
-		ReadIOPSUnit string `json:"read_iops_unit"`
-		WriteBytes []float64 `json:"write_bandwidth"`
-		WriteBytesUnit string `json:"write_bandwidth_unit"`
-		WriteIOPS []float64 `json:"write_iops"`
-		WriteIOPSUnit string `json:"write_iops_unit"`
-		MetadataOPS []float64 `json:"metadata_ops"`
-		MetadataOPSUnit string `json:"metadata_ops_unit"`
-		Load [][5]int64 `json:"nodes_loadavg"`
-		LoadUnit string `json:"nodes_loadavg_unit"`
-	} {as_epoch_array(fsstats.Time), fsstats.ReadBytes, unitBw, fsstats.ReadIOPS, unitIops, fsstats.WriteBytes, unitBw, fsstats.WriteIOPS, unitIops, fsstats.MetadataOPS, unitIops, fsstats.Load, unitLoad}
+		Time            []epochTime `json:"time"`
+		ReadBytes       []float64   `json:"read_bandwidth"`
+		ReadBytesUnit   string      `json:"read_bandwidth_unit"`
+		ReadIOPS        []float64   `json:"read_iops"`
+		ReadIOPSUnit    string      `json:"read_iops_unit"`
+		WriteBytes      []float64   `json:"write_bandwidth"`
+		WriteBytesUnit  string      `json:"write_bandwidth_unit"`
+		WriteIOPS       []float64   `json:"write_iops"`
+		WriteIOPSUnit   string      `json:"write_iops_unit"`
+		MetadataOPS     []float64   `json:"metadata_ops"`
+		MetadataOPSUnit string      `json:"metadata_ops_unit"`
+		Load            [][5]int64  `json:"nodes_loadavg"`
+		LoadUnit        string      `json:"nodes_loadavg_unit"`
+	}{as_epoch_array(fsstats.Time), fsstats.ReadBytes, unitBw, fsstats.ReadIOPS, unitIops, fsstats.WriteBytes, unitBw, fsstats.WriteIOPS, unitIops, fsstats.MetadataOPS, unitIops, fsstats.Load, unitLoad}
 
 	fsstats_bytes, err := json.Marshal(ret)
 	_, _ = w.Write(fsstats_bytes)

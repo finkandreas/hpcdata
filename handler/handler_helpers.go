@@ -146,8 +146,9 @@ type epochTime struct {
 	// to this type, to allow storing in JSON as epoch
 	// See implementation `as_epoch_array` for the casting
 }
+
 func (e epochTime) MarshalJSON() ([]byte, error) {
-    return fmt.Appendf(nil, "%d", e.Time.Unix()), nil
+	return fmt.Appendf(nil, "%d", e.Time.Unix()), nil
 }
 func as_epoch_array(in []time.Time) []epochTime {
 	if len(in) == 0 {

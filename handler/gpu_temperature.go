@@ -1,4 +1,4 @@
-package handler;
+package handler
 
 import (
 	"encoding/json"
@@ -32,24 +32,23 @@ func (h gpuTemperature) Get(w http.ResponseWriter, r *http.Request) {
 	if node_id, exists := vars["node_id"]; exists {
 		nodes = []util.Node{{Nid: node_id}}
 		// security check that the node is part of the job
-		if ! slices.ContainsFunc(job.Nodes, func(n util.Node) bool{ return n.Nid==node_id }) {
+		if !slices.ContainsFunc(job.Nodes, func(n util.Node) bool { return n.Nid == node_id }) {
 			pie(logger.Warn, condition_error{"The requested node_id is not part of the job"}, "", http.StatusBadRequest)
 		}
 	}
 	gpuTemp, err := h.esclient.GetGpuTemperature(nodes, from, to, logger)
 	pie(logger.Error, err, "Failed getting GPU temperatures", http.StatusInternalServerError)
 
-
 	type NodeGpuTemperature struct {
-		GpuIndex int `json:"gpu_id"`
+		GpuIndex    int       `json:"gpu_id"`
 		Temperature []float64 `json:"temperature"`
-		Unit string `json:"temperature_unit"`
+		Unit        string    `json:"temperature_unit"`
 	}
 	ret := struct {
-		Time []epochTime `json:"time"`
+		Time  []epochTime                     `json:"time"`
 		Nodes map[string][]NodeGpuTemperature `json:"nodes"`
-	} {as_epoch_array(gpuTemp.Time), map[string][]NodeGpuTemperature{}}
-	for k,v := range gpuTemp.Temperatures {
+	}{as_epoch_array(gpuTemp.Time), map[string][]NodeGpuTemperature{}}
+	for k, v := range gpuTemp.Temperatures {
 		for _, temps := range v {
 			ret.Nodes[k] = append(ret.Nodes[k], NodeGpuTemperature{GpuIndex: temps.GpuIndex, Temperature: temps.Temperatures, Unit: "°C"})
 		}

@@ -36,6 +36,8 @@ func main() {
 	flag.Parse()
 	config := util.ReadConfig(configpath)
 
+	db := util.NewDb(config.GetDBPath())
+
 	esclient := elastic.NewClient(config)
 
 	handler.PrepareJwksKeyfuncApiGw(config.OpenIdConfig.JwksURLApiGw)
@@ -45,6 +47,7 @@ func main() {
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/capstor/global", handler.GetCapstorGlobalHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/push", handler.GetPushMetricHandler(config, &db))
 	reqHandler.PathPrefix("/").Handler(handler.CatchAllHandler{})
 
 	// install middlewares that
