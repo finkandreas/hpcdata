@@ -45,9 +45,13 @@ func main() {
 
 	reqHandler := mux.NewRouter()
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/capstor/global", handler.GetCapstorGlobalHandler(config, esclient))
+
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
-	reqHandler.HandleFunc("/metrics/push", handler.GetPushMetricHandler(config, &db))
+
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))
+
 	reqHandler.PathPrefix("/").Handler(handler.CatchAllHandler{})
 
 	// install middlewares that

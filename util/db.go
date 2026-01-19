@@ -36,3 +36,25 @@ func (db DB) PushMetricData(timestamp int64, jobid, name, value, xname, node, co
         return num_changed==1
     }
 }
+
+func (db DB) GetMetricData(jobid, name, context, node, cluster string) ([]int64, []string, error) {
+	rows, err := db.db.Query("select timestamp, value from userdata where jobid=? and name=? and context=? and node=? and cluster=? order by timestamp", jobid, name, context, node, cluster)
+	if err != nil {
+		logging.Error(err, "Failed query")
+		return nil, nil, err
+	}
+	defer rows.Close()
+	timestamps := []int64{}
+	values := []string{}
+	for rows.Next() {
+		var timestamp int64
+		var value string
+		if err := rows.Scan(&timestamp, &value); err != nil {
+			logging.Error(err, "Failed scanning row")
+			return nil, nil, err
+		}
+		timestamps = append(timestamps, timestamp)
+		values = append(values, value)
+	}
+	return timestamps, values, nil
+}
