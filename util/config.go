@@ -28,10 +28,6 @@ type ElasticConfig struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 }
-type OpenIdConfig struct {
-	JwksURL      string `yaml:"jwks_url"`
-	JwksURLApiGw string `yaml:"jwks_url_api_gw"`
-}
 type SecurityConfig struct {
 	AllowAnyJob []string `yaml:"allow_any_job"`
 }
@@ -41,10 +37,10 @@ type ClusterConfig struct {
 	ElasticName string `yaml:"elastic_name"`
 }
 type Config struct {
-	Server       ServerConfig   `yaml:"server"`
-	Database     DatabaseConfig `yaml:"db"`
-	Elastic      ElasticConfig  `yaml:"elastic"`
-	OpenIdConfig `yaml:"openid"`
+	Server       ServerConfig    `yaml:"server"`
+	Database     DatabaseConfig  `yaml:"db"`
+	Elastic      ElasticConfig   `yaml:"elastic"`
+	OauthSigners []string        `yaml:"openid"`
 	Clusters     []ClusterConfig `yaml:"clusters"`
 	Security     SecurityConfig  `yaml:"security"`
 }
@@ -80,9 +76,8 @@ func ReadConfig(path string) *Config {
 		log.Fatalf("Elastic config section does not pass sanity checks. URL, Username and Password must all not be empty")
 	}
 
-	if config.OpenIdConfig.JwksURL == "" ||
-		config.OpenIdConfig.JwksURLApiGw == "" {
-		log.Fatalf("OpenId config section does not pass sanity checks. JwksURL and JwksURLApiGw are mandatory fields")
+	if len(config.OauthSigners) == 0 {
+		log.Fatalf("OpenId config section does not pass sanity checks. It must contain at least one certificates URL which signs JWTs")
 	}
 
 	return &config

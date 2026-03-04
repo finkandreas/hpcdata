@@ -40,8 +40,9 @@ func main() {
 
 	esclient := elastic.NewClient(config)
 
-	handler.PrepareJwksKeyfuncApiGw(config.OpenIdConfig.JwksURLApiGw)
-	handler.PrepareJwksKeyfunc(config.OpenIdConfig.JwksURL)
+	for _, jwt_signing_url := range config.OauthSigners {
+		handler.PrepareJwksKeyfunc(jwt_signing_url)
+	}
 
 	reqHandler := mux.NewRouter()
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/capstor/global", handler.GetCapstorGlobalHandler(config, esclient))

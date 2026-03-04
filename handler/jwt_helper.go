@@ -12,14 +12,10 @@ import (
 	"cscs.ch/hpcdata/logging"
 )
 
-var jwks_keyfunc *keyfunc.JWKS = nil
-var jwks_keyfunc_api_gw *keyfunc.JWKS = nil
+var jwks_keyfuncs []*keyfunc.JWKS = nil
 
 func PrepareJwksKeyfunc(url string) {
-	jwks_keyfunc = prepareJwksKeyfuncHelper(url)
-}
-func PrepareJwksKeyfuncApiGw(url string) {
-	jwks_keyfunc_api_gw = prepareJwksKeyfuncHelper(url)
+	jwks_keyfuncs = append(jwks_keyfuncs, prepareJwksKeyfuncHelper(url))
 }
 func prepareJwksKeyfuncHelper(url string) *keyfunc.JWKS {
 	options := keyfunc.Options{
@@ -42,7 +38,7 @@ func validate_jwt(r *http.Request) ([]string, error) {
 	var err error
 
 	// try all possible JWKS keyfuncs
-	for _, keyfunc := range []*keyfunc.JWKS{jwks_keyfunc, jwks_keyfunc_api_gw} {
+	for _, keyfunc := range jwks_keyfuncs {
 		if access_token, err = jwt.Parse(token, keyfunc.Keyfunc); err == nil {
 			break // found a working keyfunc
 		}
