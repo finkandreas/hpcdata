@@ -1,17 +1,18 @@
-package util;
+package util
 
 import (
 	"time"
 )
 
 type Node struct {
-	Nid string
+	Nid   string
 	Xname string
 }
 type Job struct {
-	SlurmId int
-	Account string
-	Start   time.Time
-	End     time.Time
-	Nodes   []Node
+	SlurmId  int
+	Account  string
+	Start    time.Time
+	End      time.Time
+	Nodes    []Node
+	Finished bool
 }

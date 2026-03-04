@@ -1,14 +1,21 @@
 package handler
 
 import (
+	"bytes"
+	"context"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 	"unsafe"
 
+	"github.com/go-redsync/redsync/v4"
+	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	"github.com/gorilla/mux"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
 	"cscs.ch/hpcdata/elastic"
@@ -16,6 +23,20 @@ import (
 	"cscs.ch/hpcdata/logging"
 	"cscs.ch/hpcdata/util"
 )
+
+var redis_client *redis.Client = nil
+var redis_lock *redsync.Redsync = nil
+
+func InitRedis(cfg util.RedisConfig) {
+	redis_client = redis.NewClient(&redis.Options{
+		Addr:     cfg.Address,
+		Password: cfg.Password,
+		DB:       0,
+	})
+	pool := goredis.NewPool(redis_client)
+	redis_lock = redsync.New(pool)
+	gob.Register(util.Job{})
+}
 
 type handler_error struct {
 	user_facing  string
@@ -161,4 +182,68 @@ func as_epoch_array(in []time.Time) []epochTime {
 		panic("We cannot convert to epochTime, because the size of the two structs are not the same")
 	}
 	return unsafe.Slice((*epochTime)(unsafe.Pointer(&in[0])), len(in))
+}
+
+func store_job_to_cache(job *util.Job, job_key string) {
+	ctx := context.Background()
+	cache_timeout := 24 * time.Hour
+	if job.Finished == false {
+		cache_timeout = 30 * time.Second
+	}
+	buf := bytes.NewBuffer(nil)
+	gob.NewEncoder(buf).Encode(*job)
+	redis_client.Set(ctx, job_key, buf.Bytes(), cache_timeout)
+
+}
+
+func get_job(jobid string, cluster_config *util.ClusterConfig, f7t_client *firecrest.Client, esclient *elastic.Client, config *util.Config, logger *zerolog.Logger) (*util.Job, error) {
+	job_key := fmt.Sprintf("%v-%v", cluster_config.Name, jobid)
+	ctx := context.Background()
+	if cached_job_data, err := redis_client.Get(ctx, job_key).Bytes(); err == nil {
+		logger.Debug().Msgf("Found cached data for job_key=%v", job_key)
+		buf := bytes.NewBuffer(cached_job_data)
+		var ret util.Job
+		if err := gob.NewDecoder(buf).Decode(&ret); err != nil {
+			// warn in the log file, but ignore error and fetch freshly from f7t/elastic
+			logger.Warn().Err(err).Msgf("Could not decode cached data for job_key=%v", job_key)
+		} else {
+			return &ret, nil
+		}
+	}
+
+	if job, err := get_job_via_f7t(jobid, f7t_client, logger); err != nil {
+		logger.Warn().Msgf("Failed getting job via firecrest. err=%v", err)
+		if job, err := esclient.GetJob(jobid, cluster_config.ElasticName, logger); err != nil {
+			return nil, err
+		} else {
+			store_job_to_cache(job, job_key)
+			return job, nil
+		}
+	} else {
+		store_job_to_cache(job, job_key)
+		return job, nil
+	}
+}
+
+func get_job_via_f7t(jobid string, f7t_client *firecrest.Client, logger *zerolog.Logger) (*util.Job, error) {
+	if f7t_job, err := f7t_client.Job(jobid); err != nil {
+		return nil, err
+	} else {
+		logger.Debug().Msgf("Successfully fetched job via firecrest. Job=%#v", f7t_job)
+		submit_account, _ := strings.CutPrefix(f7t_job.Account, "a-")
+		ret := util.Job{
+			SlurmId: f7t_job.JobId,
+			Account: submit_account,
+			Start:   time.Unix(int64(f7t_job.Time.Start), 0),
+		}
+		if f7t_job.Time.End == 0 {
+			ret.End = time.Now()
+			ret.Finished = false
+		} else {
+			ret.End = time.Unix(int64(f7t_job.Time.End), 0)
+			ret.Finished = true
+		}
+		ret.Nodes = util.ExpandNodes(f7t_job.Nodes)
+		return &ret, nil
+	}
 }

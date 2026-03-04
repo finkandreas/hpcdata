@@ -40,6 +40,8 @@ func main() {
 
 	esclient := elastic.NewClient(config)
 
+	handler.InitRedis(config.RedisConfig)
+
 	for _, jwt_signing_url := range config.OauthSigners {
 		handler.PrepareJwksKeyfunc(jwt_signing_url)
 	}

@@ -23,11 +23,11 @@ import (
 )
 
 type Filesystem string
-const (
-	Capstor Filesystem = "CAPSTOR"
-	Iopsstor           = "IOPSSTOR"
-)
 
+const (
+	Capstor  Filesystem = "CAPSTOR"
+	Iopsstor            = "IOPSSTOR"
+)
 
 type Client struct {
 	*es.TypedClient
@@ -35,11 +35,11 @@ type Client struct {
 
 func NewClient(config *util.Config) *Client {
 	c, err := es.NewTypedClient(es.Config{
-		Addresses: []string{config.Elastic.URL},
-		Password:  config.Elastic.Password,
-		Username:  config.Elastic.Username,
+		Addresses:         []string{config.Elastic.URL},
+		Password:          config.Elastic.Password,
+		Username:          config.Elastic.Username,
 		EnableDebugLogger: true,
-		Logger: &elastictransport.CurlLogger{Output: os.Stdout, EnableRequestBody: true, EnableResponseBody: true},
+		Logger:            &elastictransport.CurlLogger{Output: os.Stdout, EnableRequestBody: true, EnableResponseBody: true},
 	})
 	if err != nil {
 		panic("Failed creating ElasticClient")
@@ -99,11 +99,18 @@ func (c *Client) GetJob(jobid string, cluster_name string, logger *zerolog.Logge
 		return nil, fmt.Errorf("Failed parsing end date: %w", err)
 	}
 
-	return &util.Job{SlurmId: elasticJob.JobId, Account: submission_account, Start: start, End: end, Nodes: util.ExpandNodes(elasticJob.Nodes)}, nil
+	return &util.Job{
+		SlurmId:  elasticJob.JobId,
+		Account:  submission_account,
+		Start:    start,
+		End:      end,
+		Nodes:    util.ExpandNodes(elasticJob.Nodes),
+		Finished: true, // a job in elastic is only pushed after it has finished
+	}, nil
 }
 
 type GpuTemperatureIndexed struct {
-	GpuIndex int
+	GpuIndex     int
 	Temperatures []float64
 }
 type GpuTemperatures struct {
@@ -140,8 +147,8 @@ func (c *Client) GetGpuTemperature(nodes []util.Node, from time.Time, to time.Ti
 							Range: map[string]types.RangeQuery{
 								"@timestamp": types.DateRangeQuery{
 									Format: ptr("epoch_second"),
-									Gte: ptr(strconv.FormatInt(from.Unix(), 10)),
-									Lt: ptr(strconv.FormatInt(to.Unix(), 10)),
+									Gte:    ptr(strconv.FormatInt(from.Unix(), 10)),
+									Lt:     ptr(strconv.FormatInt(to.Unix(), 10)),
 								},
 							},
 						},
@@ -151,13 +158,13 @@ func (c *Client) GetGpuTemperature(nodes []util.Node, from time.Time, to time.Ti
 			Aggregations: map[string]types.Aggregations{
 				"timestamps": {
 					DateHistogram: &types.DateHistogramAggregation{
-						Field: ptr("@timestamp"),
+						Field:            ptr("@timestamp"),
 						CalendarInterval: &calendarinterval.Minute,
 					},
 					Aggregations: map[string]types.Aggregations{
 						"nodes": {
 							Terms: &types.TermsAggregation{
-								Size: ptr(2048),
+								Size:  ptr(2048),
 								Field: ptr("nid"),
 							},
 							Aggregations: map[string]types.Aggregations{
@@ -206,7 +213,7 @@ func (c *Client) GetGpuTemperature(nodes []util.Node, from time.Time, to time.Ti
 				for len(ret.Temperatures[node_id]) <= gpuIdx {
 					ret.Temperatures[node_id] = append(ret.Temperatures[node_id], GpuTemperatureIndexed{})
 					ret.Temperatures[node_id][len(ret.Temperatures[node_id])-1].Temperatures = make([]float64, len(ret.Time))
-					for idx := range(ret.Time) {
+					for idx := range ret.Time {
 						ret.Temperatures[node_id][len(ret.Temperatures[node_id])-1].Temperatures[idx] = 0
 					}
 				}
@@ -218,15 +225,14 @@ func (c *Client) GetGpuTemperature(nodes []util.Node, from time.Time, to time.Ti
 	return &ret, nil
 }
 
-
 type FilesystemStats struct {
-	Time []time.Time
-	ReadBytes []float64
-	WriteBytes []float64
-	ReadIOPS []float64
-	WriteIOPS []float64
+	Time        []time.Time
+	ReadBytes   []float64
+	WriteBytes  []float64
+	ReadIOPS    []float64
+	WriteIOPS   []float64
 	MetadataOPS []float64
-	Load [][5]int64
+	Load        [][5]int64
 }
 
 func (c *Client) GetGlobalFilesystem(fs Filesystem, from time.Time, to time.Time, logger *zerolog.Logger) (*FilesystemStats, error) {
@@ -246,8 +252,8 @@ func (c *Client) GetGlobalFilesystem(fs Filesystem, from time.Time, to time.Time
 							Range: map[string]types.RangeQuery{
 								"@timestamp": types.DateRangeQuery{
 									Format: ptr("epoch_second"),
-									Gte: ptr(strconv.FormatInt(from.Unix(), 10)),
-									Lt: ptr(strconv.FormatInt(to.Unix(), 10)),
+									Gte:    ptr(strconv.FormatInt(from.Unix(), 10)),
+									Lt:     ptr(strconv.FormatInt(to.Unix(), 10)),
 								},
 							},
 						},
@@ -266,15 +272,15 @@ func (c *Client) GetGlobalFilesystem(fs Filesystem, from time.Time, to time.Time
 			Aggregations: map[string]types.Aggregations{
 				"timestamps": {
 					DateHistogram: &types.DateHistogramAggregation{
-						Field: ptr("@timestamp"),
+						Field:            ptr("@timestamp"),
 						CalendarInterval: &calendarinterval.Minute,
 					},
 					Aggregations: map[string]types.Aggregations{
 						"metadataops": {Sum: &types.SumAggregation{Field: ptr("totops")}},
-						"read_bytes": {Sum: &types.SumAggregation{Field: ptr("read_bytes")}},
-						"read_iops": {Sum: &types.SumAggregation{Field: ptr("read_iops")}},
+						"read_bytes":  {Sum: &types.SumAggregation{Field: ptr("read_bytes")}},
+						"read_iops":   {Sum: &types.SumAggregation{Field: ptr("read_iops")}},
 						"write_bytes": {Sum: &types.SumAggregation{Field: ptr("write_bytes")}},
-						"write_iops": {Sum: &types.SumAggregation{Field: ptr("write_iops")}},
+						"write_iops":  {Sum: &types.SumAggregation{Field: ptr("write_iops")}},
 						"load_one": {
 							Range: &types.RangeAggregation{
 								Field: ptr("load_one"),
@@ -305,10 +311,10 @@ func (c *Client) GetGlobalFilesystem(fs Filesystem, from time.Time, to time.Time
 	for _, bucket := range aggregateBuckets {
 		ret.Time = append(ret.Time, time.Unix(bucket.Key/1000, 0))
 		ret.MetadataOPS = append(ret.MetadataOPS, f64(bucket.Aggregations["metadataops"].(*types.SumAggregate).Value, math.NaN()))
-		ret.ReadBytes   = append(ret.ReadBytes,   f64(bucket.Aggregations["read_bytes"].(*types.SumAggregate).Value, math.NaN()))
-		ret.ReadIOPS    = append(ret.ReadIOPS,    f64(bucket.Aggregations["read_iops"].(*types.SumAggregate).Value, math.NaN()))
-		ret.WriteBytes  = append(ret.WriteBytes,  f64(bucket.Aggregations["write_bytes"].(*types.SumAggregate).Value, math.NaN()))
-		ret.WriteIOPS   = append(ret.WriteIOPS,   f64(bucket.Aggregations["write_iops"].(*types.SumAggregate).Value, math.NaN()))
+		ret.ReadBytes = append(ret.ReadBytes, f64(bucket.Aggregations["read_bytes"].(*types.SumAggregate).Value, math.NaN()))
+		ret.ReadIOPS = append(ret.ReadIOPS, f64(bucket.Aggregations["read_iops"].(*types.SumAggregate).Value, math.NaN()))
+		ret.WriteBytes = append(ret.WriteBytes, f64(bucket.Aggregations["write_bytes"].(*types.SumAggregate).Value, math.NaN()))
+		ret.WriteIOPS = append(ret.WriteIOPS, f64(bucket.Aggregations["write_iops"].(*types.SumAggregate).Value, math.NaN()))
 
 		LoadBuckets := bucket.Aggregations["load_one"].(*types.RangeAggregate).Buckets.([]types.RangeBucket)
 		ret.Load = append(ret.Load, [5]int64{LoadBuckets[0].DocCount, LoadBuckets[1].DocCount, LoadBuckets[2].DocCount, LoadBuckets[3].DocCount, LoadBuckets[4].DocCount})

@@ -36,6 +36,10 @@ type ClusterConfig struct {
 	F7tURL      string `yaml:"f7t_url"`
 	ElasticName string `yaml:"elastic_name"`
 }
+type RedisConfig struct {
+	Address  string `yaml:"address"`
+	Password string `yaml:"password"`
+}
 type Config struct {
 	Server       ServerConfig    `yaml:"server"`
 	Database     DatabaseConfig  `yaml:"db"`
@@ -43,6 +47,7 @@ type Config struct {
 	OauthSigners []string        `yaml:"openid"`
 	Clusters     []ClusterConfig `yaml:"clusters"`
 	Security     SecurityConfig  `yaml:"security"`
+	RedisConfig  RedisConfig     `yaml:"redis"`
 }
 
 func ReadConfig(path string) *Config {
@@ -62,6 +67,9 @@ func ReadConfig(path string) *Config {
 	if envvar, ok := os.LookupEnv("HPCDATA_DATABASE_PASSWORD"); ok {
 		config.Database.Password = envvar
 	}
+	if envvar, ok := os.LookupEnv("REDIS_PASSWORD"); ok {
+		config.RedisConfig.Password = envvar
+	}
 
 	if config.Database.Address == "" ||
 		config.Database.User == "" ||
@@ -78,6 +86,10 @@ func ReadConfig(path string) *Config {
 
 	if len(config.OauthSigners) == 0 {
 		log.Fatalf("OpenId config section does not pass sanity checks. It must contain at least one certificates URL which signs JWTs")
+	}
+
+	if config.RedisConfig.Address == "" || config.RedisConfig.Password == "" {
+		log.Fatalf("Redis config section does not pass sanity checks. It must contain the Address and Password")
 	}
 
 	return &config
