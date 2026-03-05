@@ -107,6 +107,7 @@ func (f *Client) _get(endpoint string, ret any) error {
 
 	// check if request failed
 	if err != nil {
+		logging.Debugf("Failed request for %v", endpoint)
 		return err
 	}
 

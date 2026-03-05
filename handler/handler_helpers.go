@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"bytes"
-	"context"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -106,7 +104,7 @@ func panic_if_no_access(r *http.Request, esclient *elastic.Client, config *util.
 
 	logger.Debug().Msgf("userinfo=%+v", user)
 
-	job, err := get_job(jobid, cluster_config, f7t_client, esclient, config, logger)
+	job, err := get_job_cached(jobid, cluster_config, f7t_client, esclient, config, logger)
 	if errors.Is(err, util.ErrInvalidInput) {
 		pie(logger.Warn, err, "", http.StatusBadRequest)
 	} else {
@@ -184,45 +182,25 @@ func as_epoch_array(in []time.Time) []epochTime {
 	return unsafe.Slice((*epochTime)(unsafe.Pointer(&in[0])), len(in))
 }
 
-func store_job_to_cache(job *util.Job, job_key string) {
-	ctx := context.Background()
-	cache_timeout := 24 * time.Hour
-	if job.Finished == false {
-		cache_timeout = 30 * time.Second
-	}
-	buf := bytes.NewBuffer(nil)
-	gob.NewEncoder(buf).Encode(*job)
-	redis_client.Set(ctx, job_key, buf.Bytes(), cache_timeout)
-
-}
-
-func get_job(jobid string, cluster_config *util.ClusterConfig, f7t_client *firecrest.Client, esclient *elastic.Client, config *util.Config, logger *zerolog.Logger) (*util.Job, error) {
+func get_job_cached(jobid string, cluster_config *util.ClusterConfig, f7t_client *firecrest.Client, esclient *elastic.Client, config *util.Config, logger *zerolog.Logger) (*util.Job, error) {
 	job_key := fmt.Sprintf("%v-%v", cluster_config.Name, jobid)
-	ctx := context.Background()
-	if cached_job_data, err := redis_client.Get(ctx, job_key).Bytes(); err == nil {
-		logger.Debug().Msgf("Found cached data for job_key=%v", job_key)
-		buf := bytes.NewBuffer(cached_job_data)
-		var ret util.Job
-		if err := gob.NewDecoder(buf).Decode(&ret); err != nil {
-			// warn in the log file, but ignore error and fetch freshly from f7t/elastic
-			logger.Warn().Err(err).Msgf("Could not decode cached data for job_key=%v", job_key)
+	return get_cached(job_key, logger, func() (*util.Job, time.Duration, error) {
+		if job, err := get_job_via_f7t(jobid, f7t_client, logger); err != nil {
+			logger.Warn().Msgf("Failed getting job via firecrest. err=%v", err)
+			if job, err := esclient.GetJob(jobid, cluster_config.ElasticName, logger); err != nil {
+				return nil, 0, err
+			} else {
+				// if it was fetched with Elastic, the job is Finished
+				return job, 24 * time.Hour, nil
+			}
 		} else {
-			return &ret, nil
+			cache_timeout := 24 * time.Hour
+			if false == job.Finished {
+				cache_timeout = 30 * time.Second
+			}
+			return job, cache_timeout, nil
 		}
-	}
-
-	if job, err := get_job_via_f7t(jobid, f7t_client, logger); err != nil {
-		logger.Warn().Msgf("Failed getting job via firecrest. err=%v", err)
-		if job, err := esclient.GetJob(jobid, cluster_config.ElasticName, logger); err != nil {
-			return nil, err
-		} else {
-			store_job_to_cache(job, job_key)
-			return job, nil
-		}
-	} else {
-		store_job_to_cache(job, job_key)
-		return job, nil
-	}
+	})
 }
 
 func get_job_via_f7t(jobid string, f7t_client *firecrest.Client, logger *zerolog.Logger) (*util.Job, error) {
