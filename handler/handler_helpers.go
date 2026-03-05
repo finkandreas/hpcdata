@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,10 +9,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/go-redsync/redsync/v4"
-	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	"github.com/gorilla/mux"
-	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 
 	"cscs.ch/hpcdata/elastic"
@@ -21,20 +17,6 @@ import (
 	"cscs.ch/hpcdata/logging"
 	"cscs.ch/hpcdata/util"
 )
-
-var redis_client *redis.Client = nil
-var redis_lock *redsync.Redsync = nil
-
-func InitRedis(cfg util.RedisConfig) {
-	redis_client = redis.NewClient(&redis.Options{
-		Addr:     cfg.Address,
-		Password: cfg.Password,
-		DB:       0,
-	})
-	pool := goredis.NewPool(redis_client)
-	redis_lock = redsync.New(pool)
-	gob.Register(util.Job{})
-}
 
 type handler_error struct {
 	user_facing  string
@@ -104,7 +86,7 @@ func panic_if_no_access(r *http.Request, esclient *elastic.Client, config *util.
 
 	logger.Debug().Msgf("userinfo=%+v", user)
 
-	job, err := get_job_cached(jobid, cluster_config, f7t_client, esclient, config, logger)
+	job, err := get_job(jobid, cluster_config, f7t_client, esclient, logger)
 	if errors.Is(err, util.ErrInvalidInput) {
 		pie(logger.Warn, err, "", http.StatusBadRequest)
 	} else {
@@ -182,7 +164,7 @@ func as_epoch_array(in []time.Time) []epochTime {
 	return unsafe.Slice((*epochTime)(unsafe.Pointer(&in[0])), len(in))
 }
 
-func get_job_cached(jobid string, cluster_config *util.ClusterConfig, f7t_client *firecrest.Client, esclient *elastic.Client, config *util.Config, logger *zerolog.Logger) (*util.Job, error) {
+func get_job(jobid string, cluster_config *util.ClusterConfig, f7t_client *firecrest.Client, esclient *elastic.Client, logger *zerolog.Logger) (*util.Job, error) {
 	job_key := fmt.Sprintf("%v-%v", cluster_config.Name, jobid)
 	return get_cached(job_key, logger, func() (*util.Job, time.Duration, error) {
 		if job, err := get_job_via_f7t(jobid, f7t_client, logger); err != nil {
