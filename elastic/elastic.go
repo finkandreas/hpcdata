@@ -100,7 +100,7 @@ func (c *Client) GetJob(jobid string, cluster_name string, logger *zerolog.Logge
 	}
 
 	return &util.Job{
-		SlurmId:  elasticJob.JobId,
+		SlurmId:  fmt.Sprintf("%v", elasticJob.JobId),
 		Account:  submission_account,
 		Start:    start,
 		End:      end,

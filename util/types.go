@@ -9,7 +9,7 @@ type Node struct {
 	Xname string
 }
 type Job struct {
-	SlurmId  int
+	SlurmId  string
 	Account  string
 	Start    time.Time
 	End      time.Time
