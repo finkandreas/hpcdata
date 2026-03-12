@@ -43,7 +43,7 @@ type Job struct {
 	NumNodes       int           `json:"allocationNodes"`
 	Cluster        string        `json:"cluster"`
 	Group          string        `json:"group"`
-	JobId          int           `json:"jobId"`
+	JobId          string        `json:"jobId"`
 	KillRequestUsr string        `json:"killRequestUser"`
 	Name           string        `json:"name"`
 	Nodes          string        `json:"nodes"`
