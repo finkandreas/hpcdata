@@ -6,6 +6,7 @@ import (
 	"encoding/gob"
 	"time"
 
+	"cscs.ch/hpcdata/firecrest"
 	"cscs.ch/hpcdata/util"
 	"github.com/go-redsync/redsync/v4"
 	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
@@ -25,6 +26,7 @@ func InitRedis(cfg util.RedisConfig) {
 	pool := goredis.NewPool(redis_client)
 	redis_lock = redsync.New(pool)
 	gob.Register(util.Job{})
+	gob.Register(firecrest.UserInfo{})
 }
 
 // getter must return a pointer to the type of interest + a caching duration + error if no caching should be done
@@ -47,8 +49,11 @@ func get_cached[T any](job_key string, logger *zerolog.Logger, getter func() (*T
 		return ret, err
 	} else {
 		buf := bytes.NewBuffer(nil)
-		gob.NewEncoder(buf).Encode(*ret)
-		redis_client.Set(ctx, job_key, buf.Bytes(), cache_timeout)
+		if err := gob.NewEncoder(buf).Encode(*ret); err != nil {
+			logger.Error().Err(err).Msgf("Failed encoding cache value with gob encoding")
+		} else {
+			redis_client.Set(ctx, job_key, buf.Bytes(), cache_timeout)
+		}
 		return ret, nil
 	}
 }
