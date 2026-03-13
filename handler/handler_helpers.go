@@ -81,9 +81,11 @@ func panic_if_no_access(r *http.Request, esclient *elastic.Client, config *util.
 
 	auth := r.Header.Get("Authorization")
 	f7t_client := firecrest.NewClient(cluster_config.F7tURL, cluster_config.Name, auth)
-	user, err := f7t_client.UserInfo()
-	pie(logger.Warn, err, "Failed fetching userinfo from FirecREST. Did you subscribe to the API?", http.StatusBadRequest)
-
+	user, err := get_cached(auth, logger, func() (*firecrest.UserInfo, time.Duration, error) {
+		u, err := f7t_client.UserInfo()
+		return &u, 1 * time.Hour, err
+	})
+	pie(logger.Warn, err, "Failed fetching userinfo from Firecrest. Did you subscribe to the API?", http.StatusBadRequest)
 	logger.Debug().Msgf("userinfo=%+v", user)
 
 	job, err := get_job(jobid, cluster_config, f7t_client, esclient, logger)
