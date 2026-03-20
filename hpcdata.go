@@ -55,6 +55,8 @@ func main() {
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))
 
+	reqHandler.HandleFunc("/test", handler.GetTestHandler())
+
 	reqHandler.PathPrefix("/").Handler(handler.CatchAllHandler{})
 
 	// install middlewares that
