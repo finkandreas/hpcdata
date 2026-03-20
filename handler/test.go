@@ -28,6 +28,17 @@ func (h test) Get(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	time.Sleep(1 * time.Second)
+	sleep_time := r.URL.Query().Get("sleep")
+	logger.Debug().Msgf("Received sleep_time=%v from request", resp_code)
+	sleep_time_int := 1
+	if sleep_time != "" {
+		var err error
+		if sleep_time_int, err = strconv.Atoi(sleep_time); err != nil {
+			logger.Warn().Err(err).Msgf("Could not convert to an integer")
+			sleep_time_int = 1
+		}
+	}
+
+	time.Sleep(time.Duration(sleep_time_int) * time.Second)
 	http.Error(w, resp_code, resp_code_int)
 }
