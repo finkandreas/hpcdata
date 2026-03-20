@@ -12,6 +12,6 @@ func GetTestHandler() func(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h test) Get(w http.ResponseWriter, r *http.Request) {
-	time.Sleep(300 * time.Second)
-	_, _ = w.Write([]byte("ok"))
+	time.Sleep(1 * time.Second)
+	http.Error(w, "Gateway timeout", http.StatusGatewayTimeout)
 }
