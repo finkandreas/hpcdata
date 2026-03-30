@@ -323,6 +323,96 @@ func (c *Client) GetGlobalFilesystem(fs Filesystem, from time.Time, to time.Time
 	return &ret, nil
 }
 
+type ChassisEnergy struct {
+	Time         []time.Time
+	EnergyByNode map[string][]float64 // key==node-id
+}
+
+func (c *Client) GetChassisEnergy(nodes []util.Node, from time.Time, to time.Time, logger *zerolog.Logger) (*ChassisEnergy, error) {
+	if logger == nil {
+		logger = logging.Get()
+	}
+
+	nodesOfInterest := []string{}
+	for _, n := range nodes {
+		n1, _ := strings.CutPrefix(n.Nid, "nid")
+		nodesOfInterest = append(nodesOfInterest, strings.TrimLeft(n1, "0"))
+	}
+
+	// MessageId :"CrayTelemetry.Energy" and vcluster:daint and Sensor.Location:x1202c6s4b0n0 and Sensor.ParentalContext:Chassis and Sensor.PhysicalContext:"VoltageRegulator" and Sensor.PhysicalSubContext:Input and Sensor.Index:0 and data_stream.namespace:alps.energy
+	res, err := c.Search().
+		Index(".ds-metrics-facility.telemetry-alps.energy*").
+		Request(&search.Request{
+			Size: ptr(0), // we are only interested in the aggregation results
+			Query: &types.Query{
+				Bool: &types.BoolQuery{
+					Filter: []types.Query{
+						{
+							Terms: &types.TermsQuery{TermsQuery: map[string]types.TermsQueryField{"nid": nodesOfInterest}},
+						}, {
+							Term: map[string]types.TermQuery{"Sensor.ParentalContext": {Value: "Chassis"}},
+						}, {
+							Term: map[string]types.TermQuery{"Sensor.PhysicalContext": {Value: "VoltageRegulator"}},
+						}, {
+							Term: map[string]types.TermQuery{"Sensor.PhysicalSubContext": {Value: "Input"}},
+						}, {
+							Term: map[string]types.TermQuery{"MessageId": {Value: "CrayTelemetry.Energy"}},
+						}, {
+							Range: map[string]types.RangeQuery{
+								"@timestamp": types.DateRangeQuery{
+									Format: ptr("epoch_second"),
+									Gte:    ptr(strconv.FormatInt(from.Unix(), 10)),
+									Lt:     ptr(strconv.FormatInt(to.Unix(), 10)),
+								},
+							},
+						},
+					},
+				},
+			},
+			Aggregations: map[string]types.Aggregations{
+				"timestamps": {
+					DateHistogram: &types.DateHistogramAggregation{
+						Field:            ptr("@timestamp"),
+						CalendarInterval: &calendarinterval.Minute,
+					},
+					Aggregations: map[string]types.Aggregations{
+						"nodes": {
+							Terms: &types.TermsAggregation{
+								Size:  ptr(2048),
+								Field: ptr("nid"),
+							},
+							Aggregations: map[string]types.Aggregations{
+								"energy": {Max: &types.MaxAggregation{Field: ptr("Sensor.Value")}},
+							},
+						},
+					},
+				},
+			},
+		}).Do(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed getting node's energy searching in elastic: %w", err)
+	}
+
+	timestampBuckets := res.Aggregations["timestamps"].(*types.DateHistogramAggregate).Buckets.([]types.DateHistogramBucket)
+	logger.Debug().Msgf("Querying chassis energy from elastic took %vms. Num results in aggregation=%v", res.Took, len(timestampBuckets))
+	if len(timestampBuckets) > 0 {
+		logger.Debug().Msgf("First bucket result: %v", timestampBuckets[0])
+	}
+
+	ret := ChassisEnergy{EnergyByNode: map[string][]float64{}}
+	for _, timestampBucket := range timestampBuckets {
+		ret.Time = append(ret.Time, time.Unix(timestampBucket.Key/1000, 0))
+		nodeBuckets := timestampBucket.Aggregations["nodes"].(*types.StringTermsAggregate).Buckets.([]types.StringTermsBucket)
+		for _, nodeBucket := range nodeBuckets {
+			node_id := "nid" + strings.Repeat("0", 6-len(nodeBucket.Key.(string))) + nodeBucket.Key.(string)
+			ret.EnergyByNode[node_id] = append(ret.EnergyByNode[node_id], f64(nodeBucket.Aggregations["energy"].(*types.MaxAggregate).Value, 0))
+		}
+
+	}
+	return &ret, nil
+}
+
 // helper functions
 // return pointer to input arg
 func ptr[T any](in T) *T {
