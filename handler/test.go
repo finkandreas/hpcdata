@@ -29,7 +29,7 @@ func (h test) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sleep_time := r.URL.Query().Get("sleep")
-	logger.Debug().Msgf("Received sleep_time=%v from request", resp_code)
+	logger.Debug().Msgf("Received sleep_time=%v from request", sleep_time)
 	sleep_time_int := 1
 	if sleep_time != "" {
 		var err error
