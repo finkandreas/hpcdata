@@ -29,6 +29,8 @@ const (
 	Iopsstor            = "IOPSSTOR"
 )
 
+const wanted_num_timestamps = 5000
+
 type Client struct {
 	*es.TypedClient
 }
@@ -333,13 +335,14 @@ func (c *Client) GetChassisEnergy(nodes []util.Node, from time.Time, to time.Tim
 		logger = logging.Get()
 	}
 
+	interval := get_interval(from, to, 2*time.Second)
+
 	nodesOfInterest := []string{}
 	for _, n := range nodes {
 		n1, _ := strings.CutPrefix(n.Nid, "nid")
 		nodesOfInterest = append(nodesOfInterest, strings.TrimLeft(n1, "0"))
 	}
 
-	// MessageId :"CrayTelemetry.Energy" and vcluster:daint and Sensor.Location:x1202c6s4b0n0 and Sensor.ParentalContext:Chassis and Sensor.PhysicalContext:"VoltageRegulator" and Sensor.PhysicalSubContext:Input and Sensor.Index:0 and data_stream.namespace:alps.energy
 	res, err := c.Search().
 		Index(".ds-metrics-facility.telemetry-alps.energy*").
 		Request(&search.Request{
@@ -372,8 +375,8 @@ func (c *Client) GetChassisEnergy(nodes []util.Node, from time.Time, to time.Tim
 			Aggregations: map[string]types.Aggregations{
 				"timestamps": {
 					DateHistogram: &types.DateHistogramAggregation{
-						Field:            ptr("@timestamp"),
-						CalendarInterval: &calendarinterval.Minute,
+						Field:         ptr("@timestamp"),
+						FixedInterval: ptr(interval),
 					},
 					Aggregations: map[string]types.Aggregations{
 						"nodes": {
@@ -401,19 +404,147 @@ func (c *Client) GetChassisEnergy(nodes []util.Node, from time.Time, to time.Tim
 	}
 
 	ret := ChassisEnergy{EnergyByNode: map[string][]float64{}}
+	energyFirstValueByNode := map[string]float64{}
 	for _, timestampBucket := range timestampBuckets {
+		nodesThisBucket := map[string]bool{}
+		for _, n := range nodes {
+			nodesThisBucket[n.Nid] = true
+		}
 		ret.Time = append(ret.Time, time.Unix(timestampBucket.Key/1000, 0))
 		nodeBuckets := timestampBucket.Aggregations["nodes"].(*types.StringTermsAggregate).Buckets.([]types.StringTermsBucket)
 		for _, nodeBucket := range nodeBuckets {
 			node_id := "nid" + strings.Repeat("0", 6-len(nodeBucket.Key.(string))) + nodeBucket.Key.(string)
-			ret.EnergyByNode[node_id] = append(ret.EnergyByNode[node_id], f64(nodeBucket.Aggregations["energy"].(*types.MaxAggregate).Value, 0))
+			delete(nodesThisBucket, node_id)
+			if shiftBy, ok := energyFirstValueByNode[nodeBucket.Key.(string)]; ok {
+				ret.EnergyByNode[node_id] = append(ret.EnergyByNode[node_id], f64(nodeBucket.Aggregations["energy"].(*types.MaxAggregate).Value, 0)-shiftBy)
+			} else {
+				shiftBy = f64(nodeBucket.Aggregations["energy"].(*types.MaxAggregate).Value, 0)
+				energyFirstValueByNode[nodeBucket.Key.(string)] = shiftBy
+				ret.EnergyByNode[node_id] = append(ret.EnergyByNode[node_id], f64(nodeBucket.Aggregations["energy"].(*types.MaxAggregate).Value, 0)-shiftBy)
+			}
 		}
+		for nid, _ := range nodesThisBucket {
+			if ret.EnergyByNode[nid] != nil {
+				ret.EnergyByNode[nid] = append(ret.EnergyByNode[nid], ret.EnergyByNode[nid][len(ret.EnergyByNode[nid])-1])
+			} else {
+				ret.EnergyByNode[nid] = append(ret.EnergyByNode[nid], -1.0e6)
+			}
+		}
+	}
+	return &ret, nil
+}
 
+type ChassisPower struct {
+	Time        []time.Time
+	PowerByNode map[string][]float64 // key==node-id
+}
+
+func (c *Client) GetChassisPower(nodes []util.Node, from time.Time, to time.Time, logger *zerolog.Logger) (*ChassisPower, error) {
+	if logger == nil {
+		logger = logging.Get()
+	}
+
+	interval := get_interval(from, to, 2*time.Second)
+
+	nodesOfInterest := []string{}
+	for _, n := range nodes {
+		n1, _ := strings.CutPrefix(n.Nid, "nid")
+		nodesOfInterest = append(nodesOfInterest, strings.TrimLeft(n1, "0"))
+	}
+	// MessageId :"CrayTelemetry.Power" and data_stream.namespace:alps.power and Sensor.PhysicalContext:VoltageRegulator and Sensor.Index:0 and Sensor.PhysicalSubContext:Input and Sensor.Location:x1201c3s3b0n0
+	res, err := c.Search().
+		Index(".ds-metrics-facility.telemetry-alps.power*").
+		Request(&search.Request{
+			Size: ptr(0), // we are only interested in the aggregation results
+			Query: &types.Query{
+				Bool: &types.BoolQuery{
+					Filter: []types.Query{
+						{
+							Terms: &types.TermsQuery{TermsQuery: map[string]types.TermsQueryField{"nid": nodesOfInterest}},
+						}, {
+							Term: map[string]types.TermQuery{"Sensor.ParentalContext": {Value: "Chassis"}},
+						}, {
+							Term: map[string]types.TermQuery{"Sensor.PhysicalContext": {Value: "VoltageRegulator"}},
+						}, {
+							Term: map[string]types.TermQuery{"Sensor.PhysicalSubContext": {Value: "Input"}},
+						}, {
+							Term: map[string]types.TermQuery{"MessageId": {Value: "CrayTelemetry.Power"}},
+						}, {
+							Range: map[string]types.RangeQuery{
+								"@timestamp": types.DateRangeQuery{
+									Format: ptr("epoch_second"),
+									Gte:    ptr(strconv.FormatInt(from.Unix(), 10)),
+									Lt:     ptr(strconv.FormatInt(to.Unix(), 10)),
+								},
+							},
+						},
+					},
+				},
+			},
+			Aggregations: map[string]types.Aggregations{
+				"timestamps": {
+					DateHistogram: &types.DateHistogramAggregation{
+						Field:         ptr("@timestamp"),
+						FixedInterval: ptr(interval),
+					},
+					Aggregations: map[string]types.Aggregations{
+						"nodes": {
+							Terms: &types.TermsAggregation{
+								Size:  ptr(2048),
+								Field: ptr("nid"),
+							},
+							Aggregations: map[string]types.Aggregations{
+								"power": {Avg: &types.AverageAggregation{Field: ptr("Sensor.Value")}},
+							},
+						},
+					},
+				},
+			},
+		}).Do(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed getting node's energy searching in elastic: %w", err)
+	}
+
+	timestampBuckets := res.Aggregations["timestamps"].(*types.DateHistogramAggregate).Buckets.([]types.DateHistogramBucket)
+	logger.Debug().Msgf("Querying chassis power from elastic took %vms. Num results in aggregation=%v", res.Took, len(timestampBuckets))
+	if len(timestampBuckets) > 0 {
+		logger.Debug().Msgf("First bucket result: %v", timestampBuckets[0])
+	}
+
+	ret := ChassisPower{PowerByNode: map[string][]float64{}}
+	for _, timestampBucket := range timestampBuckets {
+		nodesThisBucket := map[string]bool{}
+		for _, n := range nodes {
+			nodesThisBucket[n.Nid] = true
+		}
+		ret.Time = append(ret.Time, time.Unix(timestampBucket.Key/1000, 0))
+		nodeBuckets := timestampBucket.Aggregations["nodes"].(*types.StringTermsAggregate).Buckets.([]types.StringTermsBucket)
+		for _, nodeBucket := range nodeBuckets {
+			node_id := "nid" + strings.Repeat("0", 6-len(nodeBucket.Key.(string))) + nodeBucket.Key.(string)
+			delete(nodesThisBucket, node_id)
+			ret.PowerByNode[node_id] = append(ret.PowerByNode[node_id], f64(nodeBucket.Aggregations["power"].(*types.AvgAggregate).Value, 0))
+		}
+		// fill missing node values with a 0
+		for nid, _ := range nodesThisBucket {
+			ret.PowerByNode[nid] = append(ret.PowerByNode[nid], 0)
+		}
 	}
 	return &ret, nil
 }
 
 // helper functions
+// get an automatic interval
+func get_interval(from, to time.Time, min_interval time.Duration) string {
+	total_sec := to.Sub(from).Seconds()
+	auto_interval_sec := math.Ceil(total_sec / wanted_num_timestamps)
+	if auto_interval_sec < min_interval.Seconds() {
+		return fmt.Sprintf("%vs", math.Ceil(min_interval.Seconds()))
+	} else {
+		return fmt.Sprintf("%vs", math.Ceil(auto_interval_sec))
+	}
+}
+
 // return pointer to input arg
 func ptr[T any](in T) *T {
 	return &in

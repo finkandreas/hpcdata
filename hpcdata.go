@@ -54,6 +54,8 @@ func main() {
 
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/energy", handler.GetChassisEnergyHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/energy", handler.GetChassisEnergyHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/power", handler.GetChassisPowerHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/power", handler.GetChassisPowerHandler(config, esclient))
 
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))

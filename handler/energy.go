@@ -48,7 +48,7 @@ func (h chassisEnergy) Get(w http.ResponseWriter, r *http.Request) {
 		Nodes map[string]ChassisEnergy `json:"nodes"`
 	}{as_epoch_array(chassisEnergy.Time), map[string]ChassisEnergy{}}
 	for nid, energy := range chassisEnergy.EnergyByNode {
-		ret.Nodes[nid] = ChassisEnergy{Energy: energy, Unit: "Joules"}
+		ret.Nodes[nid] = ChassisEnergy{Energy: energy, Unit: "Joule"}
 	}
 
 	write_bytes, err := json.Marshal(ret)
