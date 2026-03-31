@@ -335,7 +335,7 @@ func (c *Client) GetChassisEnergy(nodes []util.Node, from time.Time, to time.Tim
 		logger = logging.Get()
 	}
 
-	interval := get_interval(from, to, 2*time.Second)
+	interval := get_interval(from, to, 5*time.Second)
 
 	nodesOfInterest := []string{}
 	for _, n := range nodes {
@@ -444,7 +444,7 @@ func (c *Client) GetChassisPower(nodes []util.Node, from time.Time, to time.Time
 		logger = logging.Get()
 	}
 
-	interval := get_interval(from, to, 2*time.Second)
+	interval := get_interval(from, to, 10*time.Second)
 
 	nodesOfInterest := []string{}
 	for _, n := range nodes {
