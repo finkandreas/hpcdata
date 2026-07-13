@@ -8,13 +8,11 @@ import requests
 
 from common import Config, generate_token, make_format
 
-# change this lines for job/cluster
-cluster = 'daint'
-jobid = 1611324
-
 if __name__ == '__main__':
     with open(os.path.join(os.path.dirname(__file__), 'config.yaml')) as f:
         config: Config = yaml.safe_load(f)
+        jobid = config['jobid']
+        cluster = config['cluster']
         token = generate_token(config)
         auth_header = {'Authorization': f'Bearer {token}'}
         r = requests.get(f'{config['base_url']}/metrics/{cluster}/{jobid}/capstor/global', headers=auth_header)

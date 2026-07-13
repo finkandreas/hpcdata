@@ -7,6 +7,8 @@ class Config(TypedDict):
     client_id: str
     client_secret: str
     token_url: str
+    jobid: str
+    cluster: str
 
 def generate_token(config: Config) -> str:
 
