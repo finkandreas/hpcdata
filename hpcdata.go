@@ -49,9 +49,19 @@ func main() {
 	reqHandler := mux.NewRouter()
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/capstor/global", handler.GetCapstorGlobalHandler(config, esclient))
 
+	// TODO: Should this just come from DCGM metrics?
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
 
+	// DCGM data
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/utilization", handler.GetDcgmData(config, esclient, "gpu_utilization"))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/utilization", handler.GetDcgmData(config, esclient, "gpu_utilization"))
+
+	// global node data
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/memory", handler.GetNodeMemoryHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/memory", handler.GetNodeMemoryHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/cpu", handler.GetNodeCpuHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/cpu", handler.GetNodeCpuHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/energy", handler.GetChassisEnergyHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/energy", handler.GetChassisEnergyHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/power", handler.GetChassisPowerHandler(config, esclient))

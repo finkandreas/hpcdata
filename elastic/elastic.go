@@ -533,6 +533,350 @@ func (c *Client) GetChassisPower(nodes []util.Node, from time.Time, to time.Time
 	return &ret, nil
 }
 
+type DcgmDataIndexed struct {
+	GpuIndex int
+	Data     []float64
+}
+type DcgmMetric struct {
+	Time         []time.Time
+	MetricByNode map[string][]DcgmDataIndexed
+}
+
+func (c *Client) GetDcgmData(nodes []util.Node, from time.Time, to time.Time, metric string, logger *zerolog.Logger) (*DcgmMetric, error) {
+	if logger == nil {
+		logger = logging.Get()
+	}
+
+	interval := get_interval(from, to, 10*time.Second)
+
+	nodesOfInterest := []string{}
+	for _, n := range nodes {
+		nodesOfInterest = append(nodesOfInterest, n.Nid)
+	}
+	// metric.name:cray_storage.dcgm.<metric> and data_stream.namespace:alps.node and metric.dimensions.hostname:nid001234
+	res, err := c.Search().
+		Index(".ds-metrics-facility.telemetry-alps.node*").
+		Request(&search.Request{
+			Size: ptr(0), // we are only interested in the aggregation results
+			Query: &types.Query{
+				Bool: &types.BoolQuery{
+					Filter: []types.Query{
+						{
+							Terms: &types.TermsQuery{TermsQuery: map[string]types.TermsQueryField{"metric.dimensions.hostname": nodesOfInterest}},
+						}, {
+							Term: map[string]types.TermQuery{"data_stream.namespace": {Value: "alps.node"}},
+						}, {
+							Term: map[string]types.TermQuery{"metric.name": {Value: fmt.Sprintf("cray_storage.dcgm.%v", metric)}},
+						}, {
+							Range: map[string]types.RangeQuery{
+								"@timestamp": types.DateRangeQuery{
+									Format: ptr("epoch_second"),
+									Gte:    ptr(strconv.FormatInt(from.Unix(), 10)),
+									Lt:     ptr(strconv.FormatInt(to.Unix(), 10)),
+								},
+							},
+						},
+					},
+				},
+			},
+			Aggregations: map[string]types.Aggregations{
+				"timestamps": {
+					DateHistogram: &types.DateHistogramAggregation{
+						Field:         ptr("@timestamp"),
+						FixedInterval: ptr(interval),
+					},
+					Aggregations: map[string]types.Aggregations{
+						"nodes": {
+							Terms: &types.TermsAggregation{
+								Size:  ptr(2048),
+								Field: ptr("metric.dimensions.hostname"),
+							},
+							Aggregations: map[string]types.Aggregations{
+								"gpu_idx": {
+									Terms: &types.TermsAggregation{
+										Field: ptr("metric.dimensions.gpu_id"),
+									},
+									Aggregations: map[string]types.Aggregations{
+										"metric.value": {Avg: &types.AverageAggregation{Field: ptr("metric.value")}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}).Do(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed getting node's DCGM metric %v, when searching in elastic: %w", metric, err)
+	}
+
+	timestampBuckets := res.Aggregations["timestamps"].(*types.DateHistogramAggregate).Buckets.([]types.DateHistogramBucket)
+	logger.Debug().Msgf("Querying DCGM metrics from elastic took %vms. Num results in aggregation=%v", res.Took, len(timestampBuckets))
+	if len(timestampBuckets) > 0 {
+		logger.Debug().Msgf("First bucket result: %v", timestampBuckets[0])
+	}
+
+	ret := DcgmMetric{MetricByNode: map[string][]DcgmDataIndexed{}}
+	for _, timestampBucket := range timestampBuckets {
+		ret.Time = append(ret.Time, time.Unix(timestampBucket.Key/1000, 0))
+		nodeBuckets := timestampBucket.Aggregations["nodes"].(*types.StringTermsAggregate).Buckets.([]types.StringTermsBucket)
+		// append to every already known node and every gpuIndex a 0, such that it will have in the end the same length as the time array
+		for _, t := range ret.MetricByNode {
+			for i := range t {
+				t[i].Data = append(t[i].Data, 0)
+			}
+		}
+		for _, nodeBucket := range nodeBuckets {
+			node_id := nodeBucket.Key.(string)
+			gpuBuckets := nodeBucket.Aggregations["gpu_idx"].(*types.LongTermsAggregate).Buckets.([]types.LongTermsBucket)
+			for _, gpuBucket := range gpuBuckets {
+				gpuIdx := int(gpuBucket.Key)
+				// ensure we have the temperatures for gpuIdx available
+				// ensure also that it is prefilled with as many NaN as the first  array
+				for len(ret.MetricByNode[node_id]) <= gpuIdx {
+					ret.MetricByNode[node_id] = append(ret.MetricByNode[node_id], DcgmDataIndexed{})
+					ret.MetricByNode[node_id][len(ret.MetricByNode[node_id])-1].Data = make([]float64, len(ret.Time))
+					for idx := range ret.Time {
+						ret.MetricByNode[node_id][len(ret.MetricByNode[node_id])-1].Data[idx] = 0
+					}
+				}
+				ret.MetricByNode[node_id][gpuIdx].GpuIndex = gpuIdx
+				ret.MetricByNode[node_id][gpuIdx].Data[len(ret.Time)-1] = f64(gpuBucket.Aggregations["metric.value"].(*types.MaxAggregate).Value, 0)
+			}
+		}
+	}
+	return &ret, nil
+}
+
+type Memory struct {
+	Free   []float64
+	Cache  []float64
+	Buffer []float64
+}
+type MemoryData struct {
+	Time         []time.Time
+	MemoryByNode map[string]*Memory // key==node-id
+}
+
+func (c *Client) GetMemoryData(nodes []util.Node, from time.Time, to time.Time, logger *zerolog.Logger) (*MemoryData, error) {
+	if logger == nil {
+		logger = logging.Get()
+	}
+
+	interval := get_interval(from, to, 30*time.Second)
+
+	nodesOfInterest := []string{}
+	for _, n := range nodes {
+		nodesOfInterest = append(nodesOfInterest, n.Nid)
+	}
+	// MessageId :"CrayTelemetry.Power" and data_stream.namespace:alps.power and Sensor.PhysicalContext:VoltageRegulator and Sensor.Index:0 and Sensor.PhysicalSubContext:Input and Sensor.Location:x1201c3s3b0n0
+	res, err := c.Search().
+		Index(".ds-metrics-facility.telemetry-alps.node*").
+		Request(&search.Request{
+			Size: ptr(0), // we are only interested in the aggregation results
+			Query: &types.Query{
+				Bool: &types.BoolQuery{
+					Filter: []types.Query{
+						{
+							Terms: &types.TermsQuery{TermsQuery: map[string]types.TermsQueryField{"metric.dimensions.hostname": nodesOfInterest}},
+						}, {
+							Term: map[string]types.TermQuery{"data_stream.namespace": {Value: "alps.node"}},
+						}, {
+							Prefix: map[string]types.PrefixQuery{"metric.name": {Value: "cray_storage.cray_vmstat.mem"}},
+						}, {
+							Range: map[string]types.RangeQuery{
+								"@timestamp": types.DateRangeQuery{
+									Format: ptr("epoch_second"),
+									Gte:    ptr(strconv.FormatInt(from.Unix(), 10)),
+									Lt:     ptr(strconv.FormatInt(to.Unix(), 10)),
+								},
+							},
+						},
+					},
+				},
+			},
+			Aggregations: map[string]types.Aggregations{
+				"timestamps": {
+					DateHistogram: &types.DateHistogramAggregation{
+						Field:         ptr("@timestamp"),
+						FixedInterval: ptr(interval),
+					},
+					Aggregations: map[string]types.Aggregations{
+						"nodes": {
+							Terms: &types.TermsAggregation{
+								Size:  ptr(2048),
+								Field: ptr("metric.dimensions.hostname"),
+							},
+							Aggregations: map[string]types.Aggregations{
+								"free": {
+									Filter: &types.Query{Term: map[string]types.TermQuery{"metric.name": {Value: "cray_storage.cray_vmstat.mem_free"}}},
+									Aggregations: map[string]types.Aggregations{
+										"value": {Min: &types.MinAggregation{Field: ptr("metric.value")}},
+									},
+								},
+								"cache": {
+									Filter: &types.Query{Term: map[string]types.TermQuery{"metric.name": {Value: "cray_storage.cray_vmstat.mem_cache"}}},
+									Aggregations: map[string]types.Aggregations{
+										"value": {Max: &types.MaxAggregation{Field: ptr("metric.value")}},
+									},
+								},
+								"buffer": {
+									Filter: &types.Query{Term: map[string]types.TermQuery{"metric.name": {Value: "cray_storage.cray_vmstat.mem_buff"}}},
+									Aggregations: map[string]types.Aggregations{
+										"value": {Max: &types.MaxAggregation{Field: ptr("metric.value")}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}).Do(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed getting node's memory searching in elastic: %w", err)
+	}
+
+	timestampBuckets := res.Aggregations["timestamps"].(*types.DateHistogramAggregate).Buckets.([]types.DateHistogramBucket)
+	logger.Debug().Msgf("Querying node memory from elastic took %vms. Num results in aggregation=%v", res.Took, len(timestampBuckets))
+	if len(timestampBuckets) > 0 {
+		logger.Debug().Msgf("First bucket result: %+v", timestampBuckets[0])
+	}
+
+	ret := MemoryData{MemoryByNode: map[string]*Memory{}}
+	for _, timestampBucket := range timestampBuckets {
+		ret.Time = append(ret.Time, time.Unix(timestampBucket.Key/1000, 0))
+		nodeBuckets := timestampBucket.Aggregations["nodes"].(*types.StringTermsAggregate).Buckets.([]types.StringTermsBucket)
+		for _, nodeBucket := range nodeBuckets {
+			node_id := nodeBucket.Key.(string)
+			thisMemData, exists := ret.MemoryByNode[node_id]
+			if !exists {
+				ret.MemoryByNode[node_id] = &Memory{}
+				thisMemData = ret.MemoryByNode[node_id]
+			}
+			thisMemData.Free = append(thisMemData.Free, f64(nodeBucket.Aggregations["free"].(*types.FilterAggregate).Aggregations["value"].(*types.MinAggregate).Value, 0))
+			thisMemData.Cache = append(thisMemData.Cache, f64(nodeBucket.Aggregations["cache"].(*types.FilterAggregate).Aggregations["value"].(*types.MaxAggregate).Value, 0))
+			thisMemData.Buffer = append(thisMemData.Buffer, f64(nodeBucket.Aggregations["buffer"].(*types.FilterAggregate).Aggregations["value"].(*types.MaxAggregate).Value, 0))
+		}
+	}
+	return &ret, nil
+}
+
+type Cpu struct {
+	User   []float64
+	System []float64
+}
+type CpuData struct {
+	Time      []time.Time
+	CpuByNode map[string]*Cpu // key==node-id
+}
+
+func (c *Client) GetCpuData(nodes []util.Node, from time.Time, to time.Time, logger *zerolog.Logger) (*CpuData, error) {
+	if logger == nil {
+		logger = logging.Get()
+	}
+
+	interval := get_interval(from, to, 30*time.Second)
+
+	nodesOfInterest := []string{}
+	for _, n := range nodes {
+		nodesOfInterest = append(nodesOfInterest, n.Nid)
+	}
+	// MessageId :"CrayTelemetry.Power" and data_stream.namespace:alps.power and Sensor.PhysicalContext:VoltageRegulator and Sensor.Index:0 and Sensor.PhysicalSubContext:Input and Sensor.Location:x1201c3s3b0n0
+	res, err := c.Search().
+		Index(".ds-metrics-facility.telemetry-alps.node*").
+		Request(&search.Request{
+			Size: ptr(0), // we are only interested in the aggregation results
+			Query: &types.Query{
+				Bool: &types.BoolQuery{
+					Filter: []types.Query{
+						{
+							Terms: &types.TermsQuery{TermsQuery: map[string]types.TermsQueryField{"metric.dimensions.hostname": nodesOfInterest}},
+						}, {
+							Term: map[string]types.TermQuery{"data_stream.namespace": {Value: "alps.node"}},
+						}, {
+							Prefix: map[string]types.PrefixQuery{"metric.name": {Value: "cray_storage.cray_vmstat.cpu"}},
+						}, {
+							Range: map[string]types.RangeQuery{
+								"@timestamp": types.DateRangeQuery{
+									Format: ptr("epoch_second"),
+									Gte:    ptr(strconv.FormatInt(from.Unix(), 10)),
+									Lt:     ptr(strconv.FormatInt(to.Unix(), 10)),
+								},
+							},
+						},
+					},
+				},
+			},
+			Aggregations: map[string]types.Aggregations{
+				"timestamps": {
+					DateHistogram: &types.DateHistogramAggregation{
+						Field:         ptr("@timestamp"),
+						FixedInterval: ptr(interval),
+					},
+					Aggregations: map[string]types.Aggregations{
+						"nodes": {
+							Terms: &types.TermsAggregation{
+								Size:  ptr(2048),
+								Field: ptr("metric.dimensions.hostname"),
+							},
+							Aggregations: map[string]types.Aggregations{
+								"user": {
+									Filter: &types.Query{Term: map[string]types.TermQuery{"metric.name": {Value: "cray_storage.cray_vmstat.cpu_us"}}},
+									Aggregations: map[string]types.Aggregations{
+										"value": {Max: &types.MaxAggregation{Field: ptr("metric.value")}},
+									},
+								},
+								"system": {
+									Filter: &types.Query{Term: map[string]types.TermQuery{"metric.name": {Value: "cray_storage.cray_vmstat.cpu_sy"}}},
+									Aggregations: map[string]types.Aggregations{
+										"value": {Max: &types.MaxAggregation{Field: ptr("metric.value")}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}).Do(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed getting node's cpu searching in elastic: %w", err)
+	}
+
+	timestampBuckets := res.Aggregations["timestamps"].(*types.DateHistogramAggregate).Buckets.([]types.DateHistogramBucket)
+	logger.Debug().Msgf("Querying node cpu from elastic took %vms. Num results in aggregation=%v", res.Took, len(timestampBuckets))
+	if len(timestampBuckets) > 0 {
+		logger.Debug().Msgf("First bucket result: %+v", timestampBuckets[0])
+	}
+
+	ret := CpuData{CpuByNode: map[string]*Cpu{}}
+	for _, timestampBucket := range timestampBuckets {
+		ret.Time = append(ret.Time, time.Unix(timestampBucket.Key/1000, 0))
+		nodeBuckets := timestampBucket.Aggregations["nodes"].(*types.StringTermsAggregate).Buckets.([]types.StringTermsBucket)
+		for _, nodeBucket := range nodeBuckets {
+			node_id := nodeBucket.Key.(string)
+			thisCpuData, exists := ret.CpuByNode[node_id]
+			if !exists {
+				ret.CpuByNode[node_id] = &Cpu{}
+				thisCpuData = ret.CpuByNode[node_id]
+			}
+			if nodeBucket.Aggregations["user"].(*types.FilterAggregate).Aggregations["value"] != nil {
+				thisCpuData.User = append(thisCpuData.User, f64(nodeBucket.Aggregations["user"].(*types.FilterAggregate).Aggregations["value"].(*types.MaxAggregate).Value, 0))
+			} else {
+				thisCpuData.User = append(thisCpuData.User, 0)
+			}
+			if nodeBucket.Aggregations["system"].(*types.FilterAggregate).Aggregations["value"] != nil {
+				thisCpuData.System = append(thisCpuData.System, f64(nodeBucket.Aggregations["system"].(*types.FilterAggregate).Aggregations["value"].(*types.MaxAggregate).Value, 0))
+			} else {
+				thisCpuData.System = append(thisCpuData.System, 0)
+			}
+		}
+	}
+	return &ret, nil
+}
+
 // helper functions
 // get an automatic interval
 func get_interval(from, to time.Time, min_interval time.Duration) string {
