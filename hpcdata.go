@@ -70,6 +70,9 @@ func main() {
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))
 
+	reqHandler.HandleFunc("/logs/{system_name}/{job_id}/syslog", handler.GetSyslogHandler(config, esclient))
+	reqHandler.HandleFunc("/logs/{system_name}/{job_id}/{node_id}/syslog", handler.GetSyslogHandler(config, esclient))
+
 	reqHandler.HandleFunc("/test", handler.GetTestHandler())
 
 	reqHandler.PathPrefix("/").Handler(handler.CatchAllHandler{})

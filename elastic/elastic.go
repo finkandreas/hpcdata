@@ -1,11 +1,13 @@
 package elastic
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +28,7 @@ type Filesystem string
 
 const (
 	Capstor  Filesystem = "CAPSTOR"
-	Iopsstor            = "IOPSSTOR"
+	Iopsstor Filesystem = "IOPSSTOR"
 )
 
 const wanted_num_timestamps = 5000
@@ -526,7 +528,7 @@ func (c *Client) GetChassisPower(nodes []util.Node, from time.Time, to time.Time
 			ret.PowerByNode[node_id] = append(ret.PowerByNode[node_id], f64(nodeBucket.Aggregations["power"].(*types.AvgAggregate).Value, 0))
 		}
 		// fill missing node values with a 0
-		for nid, _ := range nodesThisBucket {
+		for nid := range nodesThisBucket {
 			ret.PowerByNode[nid] = append(ret.PowerByNode[nid], 0)
 		}
 	}
@@ -874,6 +876,98 @@ func (c *Client) GetCpuData(nodes []util.Node, from time.Time, to time.Time, log
 			}
 		}
 	}
+	return &ret, nil
+}
+
+type SyslogDataEntry struct {
+	Message  string `json:"message"`
+	Source   string `json:"source"`
+	Priority string `json:"priority"`
+}
+type SyslogData struct {
+	Time   []time.Time
+	Syslog []SyslogDataEntry
+}
+type SyslogDataByNode = map[string]SyslogData
+
+func (c *Client) GetSyslog(nodes []util.Node, from time.Time, to time.Time, logger *zerolog.Logger) (*SyslogDataByNode, error) {
+	if logger == nil {
+		logger = logging.Get()
+	}
+
+	nodesOfInterest := []string{}
+	for _, n := range nodes {
+		nodesOfInterest = append(nodesOfInterest, n.Nid)
+	}
+
+	// data_stream.dataset:"syslog.nodes" and hostname:nid001799
+	res, err := c.Search().
+		Index(".ds-logs-syslog.nodes-alps.v2*").
+		Request(&search.Request{
+			Size: ptr(10000),
+			Query: &types.Query{
+				Bool: &types.BoolQuery{
+					Filter: []types.Query{
+						{
+							Terms: &types.TermsQuery{TermsQuery: map[string]types.TermsQueryField{"hostname": nodesOfInterest}},
+						}, {
+							Term: map[string]types.TermQuery{"data_stream.dataset": {Value: "syslog.nodes"}},
+						}, {
+							Range: map[string]types.RangeQuery{
+								"@timestamp": types.DateRangeQuery{
+									Format: ptr("epoch_second"),
+									Gte:    ptr(strconv.FormatInt(from.Unix(), 10)),
+									Lt:     ptr(strconv.FormatInt(to.Unix(), 10)),
+								},
+							},
+						},
+					},
+				},
+			},
+		}).Do(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed getting syslog messages from elastic: %w", err)
+	}
+	hits := res.Hits.Hits
+	logger.Debug().Msgf("Querying syslog messages from elastic took %vms. Num results=%v", res.Took, len(hits))
+	if len(hits) > 0 {
+		logger.Debug().Msgf("First result %+v", hits[0])
+	}
+
+	type SyslogDataHelper struct {
+		Message   string `json:"message"`
+		Hostname  string `json:"hostname"`
+		Ident     string `json:"ident"`
+		Priority  string `json:"priority"`
+		Timestamp string `json:"timereported"`
+	}
+	var ret = SyslogDataByNode{}
+	var allSyslogEntries []SyslogDataHelper
+	for _, hit := range hits {
+		this_hit := SyslogDataHelper{}
+		json.Unmarshal(hit.Source_, &this_hit)
+		allSyslogEntries = append(allSyslogEntries, this_hit)
+	}
+	slices.SortFunc(allSyslogEntries, func(a, b SyslogDataHelper) int {
+		return cmp.Compare(a.Timestamp, b.Timestamp)
+	})
+	for _, hit := range allSyslogEntries {
+		mapEntry := ret[hit.Hostname]
+		parsedTime, err := time.Parse(time.RFC3339Nano, hit.Timestamp)
+		if err != nil {
+			logger.Warn().Msgf("Failed parsing time input=%q, err=%v", hit.Timestamp, err)
+			parsedTime = time.Unix(0, 0)
+		}
+		mapEntry.Time = append(mapEntry.Time, parsedTime)
+		mapEntry.Syslog = append(mapEntry.Syslog, SyslogDataEntry{
+			Message:  hit.Message,
+			Source:   hit.Ident,
+			Priority: hit.Priority,
+		})
+		ret[hit.Hostname] = mapEntry
+	}
+
 	return &ret, nil
 }
 
