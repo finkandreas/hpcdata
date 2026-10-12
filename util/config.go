@@ -28,6 +28,10 @@ type ElasticConfig struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 }
+type VictoriaMetricsConfig struct {
+	URL   string `yaml:"url"`
+	Token string `yaml:"token"`
+}
 type SecurityConfig struct {
 	AllowAnyJob []string `yaml:"allow_any_job"`
 }
@@ -41,13 +45,14 @@ type RedisConfig struct {
 	Password string `yaml:"password"`
 }
 type Config struct {
-	Server       ServerConfig    `yaml:"server"`
-	Database     DatabaseConfig  `yaml:"db"`
-	Elastic      ElasticConfig   `yaml:"elastic"`
-	OauthSigners []string        `yaml:"openid"`
-	Clusters     []ClusterConfig `yaml:"clusters"`
-	Security     SecurityConfig  `yaml:"security"`
-	RedisConfig  RedisConfig     `yaml:"redis"`
+	Server          ServerConfig          `yaml:"server"`
+	Database        DatabaseConfig        `yaml:"db"`
+	Elastic         ElasticConfig         `yaml:"elastic"`
+	VictoriaMetrics VictoriaMetricsConfig `yaml:"victoriametrics"`
+	OauthSigners    []string              `yaml:"openid"`
+	Clusters        []ClusterConfig       `yaml:"clusters"`
+	Security        SecurityConfig        `yaml:"security"`
+	RedisConfig     RedisConfig           `yaml:"redis"`
 }
 
 func ReadConfig(path string) *Config {
@@ -70,6 +75,9 @@ func ReadConfig(path string) *Config {
 	if envvar, ok := os.LookupEnv("REDIS_PASSWORD"); ok {
 		config.RedisConfig.Password = envvar
 	}
+	if envvar, ok := os.LookupEnv("VICTORIAMETRICS_TOKEN"); ok {
+		config.VictoriaMetrics.Token = envvar
+	}
 
 	if config.Database.Address == "" ||
 		config.Database.User == "" ||
@@ -82,6 +90,11 @@ func ReadConfig(path string) *Config {
 		config.Elastic.Username == "" ||
 		config.Elastic.Password == "" {
 		log.Fatalf("Elastic config section does not pass sanity checks. URL, Username and Password must all not be empty")
+	}
+
+	if config.VictoriaMetrics.URL == "" ||
+		config.VictoriaMetrics.Token == "" {
+		log.Fatalf("VictoriaMetrics config section does not pass sanity checks. URL and Token must both not be empty")
 	}
 
 	if len(config.OauthSigners) == 0 {

@@ -3,10 +3,9 @@ import os
 import yaml
 
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import requests
 
-from common import Config, generate_token, make_format
+from common import Config, generate_token
 
 if __name__ == '__main__':
     with open(os.path.join(os.path.dirname(__file__), 'config.yaml')) as f:

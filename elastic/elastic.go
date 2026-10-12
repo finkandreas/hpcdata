@@ -536,8 +536,8 @@ func (c *Client) GetChassisPower(nodes []util.Node, from time.Time, to time.Time
 }
 
 type DcgmDataIndexed struct {
-	GpuIndex int
-	Data     []float64
+	GpuIndex int       `json:"gpu_id"`
+	Data     []float64 `json:"data"`
 }
 type DcgmMetric struct {
 	Time         []time.Time
