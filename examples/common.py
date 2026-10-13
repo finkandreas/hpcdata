@@ -52,10 +52,10 @@ def interpolate(
     ----------
     y:
         Input data, potentially with holes
-    x: [Optional]
+    x: [optional]
         Sequence of x values (same length as y).
         If omitted, x values are assumed equally spaced.
-    max_hole_size:
+    max_hole_size: [optional][default: 0]
         Maximum number of consecutive zeros to interpolate across.
         0 means no limit.
     """
