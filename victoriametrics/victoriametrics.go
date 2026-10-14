@@ -164,6 +164,11 @@ func (c *Client) queryRange(query string, from time.Time, to time.Time, step str
 	if err := json.Unmarshal(resp.ResponseData, &parsed); err != nil {
 		return nil, fmt.Errorf("Failed unmarshaling VictoriaMetrics response: %w", err)
 	}
+
+	if parsed.Data.ResultType != "matrix" {
+		return nil, fmt.Errorf("Unexpected result type different from matrix: %q", parsed.Data.ResultType)
+	}
+
 	return &parsed, nil
 }
 
