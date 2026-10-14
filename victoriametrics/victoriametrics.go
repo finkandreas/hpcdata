@@ -75,10 +75,6 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 		return nil, fmt.Errorf("Failed querying VictoriaMetrics for metric %v: %w", metricName, err)
 	}
 
-	if resp.Status != "success" {
-		return nil, fmt.Errorf("VictoriaMetrics query for metric %v returned non-success status: %v", metricName, resp.Status)
-	}
-
 	stepDuration, err := time.ParseDuration(step)
 	if err != nil {
 		return nil, fmt.Errorf("Failed parsing step duration %v: %w", step, err)
@@ -163,6 +159,10 @@ func (c *Client) queryRange(query string, from time.Time, to time.Time, step str
 	var parsed queryResponse
 	if err := json.Unmarshal(resp.ResponseData, &parsed); err != nil {
 		return nil, fmt.Errorf("Failed unmarshaling VictoriaMetrics response: %w", err)
+	}
+
+	if parsed.Status != "success" {
+		return nil, fmt.Errorf("VictoriaMetrics query_range returned non-success status %q for query %q", parsed.Status, query)
 	}
 
 	if parsed.Data.ResultType != "matrix" {
