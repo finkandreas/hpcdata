@@ -160,8 +160,6 @@ func (c *Client) queryRange(query string, from time.Time, to time.Time, step str
 		return nil, err
 	}
 
-	logger.Debug().Msgf("VictoriaMetrics query_range response: %v", string(resp.ResponseData))
-
 	var parsed queryResponse
 	if err := json.Unmarshal(resp.ResponseData, &parsed); err != nil {
 		return nil, fmt.Errorf("Failed unmarshaling VictoriaMetrics response: %w", err)
