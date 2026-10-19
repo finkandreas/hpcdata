@@ -34,7 +34,7 @@ func (h vmDcgm) Get(w http.ResponseWriter, r *http.Request) {
 
 	info, ok := victoriametrics.SupportedMetrics[metricName]
 	if !ok {
-		pie(logger.Warn, condition_error{fmt.Sprintf("Unsupported VM DCGM metric: %v", metricName)}, "", http.StatusBadRequest)
+		pie(logger.Warn, condition_error{fmt.Sprintf("Unsupported DCGM metric: %v", metricName)}, "", http.StatusBadRequest)
 	}
 
 	logger.Debug().Msgf("Passed all security checks to fetch VM DCGM metric=%v for job=%+v in the time window from=%v to=%v", metricName, job, from, to)
@@ -53,7 +53,7 @@ func (h vmDcgm) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dcgmData, err := h.vmclient.GetDcgmMetric(metricName, nodes, from, to, cluster_config.Name, logger)
-	pie(logger.Error, err, fmt.Sprintf("Failed getting VM DCGM metric %v", metricName), http.StatusInternalServerError)
+	pie(logger.Error, err, fmt.Sprintf("Failed getting DCGM metric %v", metricName), http.StatusInternalServerError)
 
 	ret := struct {
 		Time  []epochTime               `json:"time"`
