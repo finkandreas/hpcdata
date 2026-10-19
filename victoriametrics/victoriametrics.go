@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -50,7 +51,7 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 
 	info, ok := SupportedMetrics[metricName]
 	if !ok {
-		return nil, fmt.Errorf("Unsupported VM DCGM metric: %v", metricName)
+		return nil, fmt.Errorf("Unsupported DCGM metric: %v", metricName)
 	}
 
 	step := getStep(from, to, 10*time.Second) // [TO DO] avoid hard-coding the step duration
@@ -102,10 +103,12 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 			}
 			tsFloat, ok := pair[0].(float64)
 			if !ok {
+				logger.Warn().Msgf("Failed parsing timestamp %v as float64, skipping sample", pair[0])
 				continue
 			}
 			valStr, ok := pair[1].(string)
 			if !ok {
+				logger.Warn().Msgf("Failed parsing value %v as string, skipping sample", pair[1])
 				continue
 			}
 			val, err := strconv.ParseFloat(valStr, 64)
@@ -117,6 +120,8 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 			idx := int(ts.Sub(from).Seconds() / stepDuration.Seconds())
 			if idx >= 0 && idx < numPoints {
 				ret.MetricByNode[hostname][gpuID].Data[idx] = val
+			} else {
+				logger.Warn().Msgf("Time index %v falling out of bounds [%v, %v[", idx, 0, numPoints)
 			}
 		}
 	}
@@ -166,14 +171,8 @@ func buildNodeRegexQuery(metric string, vcluster string, nodes []util.Node) stri
 	for _, n := range nodes {
 		hostnames = append(hostnames, regexp.QuoteMeta(n.Nid))
 	}
-	regex := ""
-	for i, h := range hostnames {
-		if i > 0 {
-			regex += "|"
-		}
-		regex += h
-	}
-	return fmt.Sprintf("%v{vcluster=\"%v\", hostname=~\"%v\"}", metric, vcluster, regex)
+	regex := strings.Join(hostnames, "|")
+	return fmt.Sprintf(`%v{vcluster="%v", hostname=~"%v"}`, metric, vcluster, regex)
 }
 
 // This is a rewrite of elastic.go get_interval
