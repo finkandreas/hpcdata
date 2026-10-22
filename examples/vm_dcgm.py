@@ -21,7 +21,7 @@ def parse_dcgm_metrics(go_file: str) -> dict[str, str]:
         raise RuntimeError('dcgmMetrics map not found in ' + go_file)
 
     for key, value in re.findall(r'"([^"]+)"\s*:\s*"([^"]*)"', match.group(1)):
-        metrics[key] = value
+        metrics[key] = '' if value in ['count', 'gauge'] else f' ({value})'
 
     return metrics
 
@@ -76,7 +76,7 @@ def main(metrics_to_plot: list[str] | None = None) -> None:
 
             ax.set_title(f'VictoriaMetrics DCGM {metric}')
             ax.set_xlabel('Time')
-            ax.set_ylabel(f'{metric} ({metrics[metric]})')
+            ax.set_ylabel(f'{metric}' + metrics[metric])
             ax.grid(True)
             fig.legend()
             fig.tight_layout()
