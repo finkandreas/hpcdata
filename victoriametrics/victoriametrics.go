@@ -142,6 +142,10 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 }
 
 func (c *Client) queryRange(query string, from time.Time, to time.Time, step string, logger *zerolog.Logger) (*queryResponse, error) {
+	if logger == nil {
+		logger = logging.Get()
+	}
+
 	params := url.Values{}
 	params.Set("query", query)
 	params.Set("start", strconv.FormatInt(from.Unix(), 10))
@@ -149,6 +153,8 @@ func (c *Client) queryRange(query string, from time.Time, to time.Time, step str
 	params.Set("step", step)
 
 	requestURL := fmt.Sprintf("%v/select/0/prometheus/api/v1/query_range?%v", c.baseURL, params.Encode())
+	logger.Debug().Msgf("VictoriaMetrics query_range URL=%v", requestURL)
+
 	headers := map[string]string{
 		"Authorization": fmt.Sprintf("Bearer %v", c.token),
 	}
