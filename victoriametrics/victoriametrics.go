@@ -115,12 +115,12 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 			}
 			tsFloat, ok := pair[0].(float64)
 			if !ok {
-				logger.Warn().Msgf("Failed parsing timestamp %v as float64, skipping sample", pair[0])
+				logger.Warn().Msgf("Failed parsing timestamp %v as float64 from type %T, skipping sample", pair[0], pair[0])
 				continue
 			}
 			valStr, ok := pair[1].(string)
 			if !ok {
-				logger.Warn().Msgf("Failed parsing value %v as string, skipping sample", pair[1])
+				logger.Warn().Msgf("Failed parsing value %v as string from type %T, skipping sample", pair[1], pair[1])
 				continue
 			}
 			val, err := strconv.ParseFloat(valStr, 64)
