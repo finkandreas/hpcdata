@@ -66,11 +66,16 @@ def main(metrics_to_plot: list[str] | None = None) -> None:
             fig.set_figwidth(19)
             fig.set_figheight(10)
 
+            markers = ['>', '^', 'v', 's']
+
             for nodeid, nodeData in nodes.items():
                 for gpuData in nodeData[metric]:
+                    gpu_id = int(gpuData["gpu_id"])
                     ax.plot(time, gpuData['data'],
-                            marker='.',
-                            label=f'GPU {gpuData["gpu_id"]}')
+                            marker=markers[gpu_id % len(markers)],
+                            fillstyle='none',
+                            markersize=8,
+                            label=f'GPU {gpu_id}')
                 # only plot data of the first node
                 break
 
