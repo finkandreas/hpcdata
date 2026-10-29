@@ -14,6 +14,7 @@ import (
 	"cscs.ch/hpcdata/handler"
 	"cscs.ch/hpcdata/logging"
 	"cscs.ch/hpcdata/util"
+	"cscs.ch/hpcdata/victoriametrics"
 )
 
 type LimitBodyMiddleware struct {
@@ -40,6 +41,8 @@ func main() {
 
 	esclient := elastic.NewClient(config)
 
+	vmclient := victoriametrics.NewClient(config)
+
 	handler.InitRedis(config.RedisConfig)
 
 	for _, jwt_signing_url := range config.OauthSigners {
@@ -52,6 +55,10 @@ func main() {
 	// TODO: Should this just come from DCGM metrics?
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
+
+	// VictoriaMetrics DCGM metrics
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/vm/gpu/{metric_name}", handler.GetVMDcgmHandler(config, esclient, vmclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/vm/gpu/{metric_name}", handler.GetVMDcgmHandler(config, esclient, vmclient))
 
 	// DCGM data
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/utilization", handler.GetDcgmData(config, esclient, "gpu_utilization"))

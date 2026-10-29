@@ -3,7 +3,6 @@ import os
 import yaml
 
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import requests
 
 from common import Config, generate_token, interpolate

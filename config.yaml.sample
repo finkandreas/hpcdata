@@ -6,6 +6,9 @@ elastic:
   url: 'https://examle.com:8080'
   username: 'my-username'
   password: 'my-password'
+victoriametrics:
+  url: 'http://example.com:8400'
+  token: 'my-vm-token'
 security:
   # if a group/username appears in the list below, then it is allowed to query data for any job,
   # even if it would otherwise not be accessible by the authorized user
