@@ -90,7 +90,7 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 	// Build a time grid aligned to the requested step
 	numPoints := int(to.Sub(from).Seconds()/stepDuration.Seconds()) + 1
 	ret.Time = make([]time.Time, numPoints)
-	for i := 0; i < numPoints; i++ {
+	for i := range numPoints {
 		ret.Time[i] = from.Add(time.Duration(i) * stepDuration)
 	}
 
