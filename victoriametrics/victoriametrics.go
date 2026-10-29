@@ -78,7 +78,7 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 	// Build a time grid aligned to the requested step
 	numPoints := int(to.Sub(from).Seconds()/stepDuration.Seconds()) + 1
 	ret.Time = make([]time.Time, numPoints)
-	for i := 0; i < numPoints; i++ {
+	for i := range numPoints {
 		ret.Time[i] = from.Add(time.Duration(i) * stepDuration)
 	}
 
@@ -103,12 +103,12 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 			}
 			tsFloat, ok := pair[0].(float64)
 			if !ok {
-				logger.Warn().Msgf("Failed parsing timestamp %v as float64, skipping sample", pair[0])
+				logger.Warn().Msgf("Failed parsing timestamp %v as float64 from type %T, skipping sample", pair[0], pair[0])
 				continue
 			}
 			valStr, ok := pair[1].(string)
 			if !ok {
-				logger.Warn().Msgf("Failed parsing value %v as string, skipping sample", pair[1])
+				logger.Warn().Msgf("Failed parsing value %v as string from type %T, skipping sample", pair[1], pair[1])
 				continue
 			}
 			val, err := strconv.ParseFloat(valStr, 64)
@@ -121,7 +121,7 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 			if idx >= 0 && idx < numPoints {
 				ret.MetricByNode[hostname][gpuID].Data[idx] = val
 			} else {
-				logger.Warn().Msgf("Time index %v falling out of bounds [%v, %v[", idx, 0, numPoints)
+				logger.Warn().Msgf("Time index %v falling out of bounds [%v, %v)", idx, 0, numPoints)
 			}
 		}
 	}
@@ -130,6 +130,10 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 }
 
 func (c *Client) queryRange(query string, from time.Time, to time.Time, step string, logger *zerolog.Logger) (*queryResponse, error) {
+	if logger == nil {
+		logger = logging.Get()
+	}
+
 	params := url.Values{}
 	params.Set("query", query)
 	params.Set("start", strconv.FormatInt(from.Unix(), 10))
@@ -137,6 +141,8 @@ func (c *Client) queryRange(query string, from time.Time, to time.Time, step str
 	params.Set("step", step)
 
 	requestURL := fmt.Sprintf("%v/select/0/prometheus/api/v1/query_range?%v", c.baseURL, params.Encode())
+	logger.Debug().Msgf("VictoriaMetrics query_range URL=%v", requestURL)
+
 	headers := map[string]string{
 		"Authorization": fmt.Sprintf("Bearer %v", c.token),
 	}
