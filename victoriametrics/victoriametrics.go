@@ -133,7 +133,7 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 			if idx >= 0 && idx < numPoints {
 				ret.MetricByNode[hostname][gpuID].Data[idx] = val
 			} else {
-				logger.Warn().Msgf("Time index %v falling out of bounds [%v, %v[", idx, 0, numPoints)
+				logger.Warn().Msgf("Time index %v falling out of bounds [%v, %v)", idx, 0, numPoints)
 			}
 		}
 	}
