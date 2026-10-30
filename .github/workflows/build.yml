@@ -1,23 +1,27 @@
 name: build
 
-env:
-  IMAGE_TAG: "1.0"
-
 on:
   merge_group:
   pull_request:
   push:
     branches:
     - main
+    tags:
+    - 'v*'
   workflow_dispatch:
 
 jobs:
   docker:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     env:
-      DO_PUSH: ${{ github.repository == 'finkandreas/hpcdata' && github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+      # Push on commits to main and on release tags (v1.0.1, ...), only from the upstream repo
+      DO_PUSH: ${{ github.repository == 'finkandreas/hpcdata' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -36,10 +40,14 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/hpcdata
           tags: |
-            type=raw,value=${{ env.IMAGE_TAG }}
-            type=sha,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
-      - name: Build (and push on main)
+            type=edge,branch=main # the newest version on main
+            type=sha,format=short # commit sha
+            # Release tag vx.y.z -> x.y.z, x.y, x (as well as latest)
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+      - name: Build (and push on main / release tags)
+        id: push
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -49,3 +57,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Attest image
+        if: env.DO_PUSH == 'true'
+        uses: actions/attest@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/hpcdata
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
