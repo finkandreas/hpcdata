@@ -15,7 +15,7 @@ if __name__ == '__main__':
         metric = 'gpu_temp'
         token = generate_token(config)
         auth_header = {'Authorization': f'Bearer {token}'}
-        r = requests.get(f"{config['base_url']}/metrics/{cluster}/{jobid}/vm/gpu/{metric}", headers=auth_header)
+        r = requests.get(f"{config['base_url']}/metrics/{cluster}/{jobid}/gpu/{metric}", headers=auth_header)
         r.raise_for_status()
 
         response = r.json()

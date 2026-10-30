@@ -57,12 +57,8 @@ func main() {
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/temperature", handler.GetGpuTemperatureHandler(config, esclient))
 
 	// VictoriaMetrics DCGM metrics
-	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/vm/gpu/{metric_name}", handler.GetVMDcgmHandler(config, esclient, vmclient))
-	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/vm/gpu/{metric_name}", handler.GetVMDcgmHandler(config, esclient, vmclient))
-
-	// DCGM data
-	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/utilization", handler.GetDcgmData(config, esclient, "gpu_utilization"))
-	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/utilization", handler.GetDcgmData(config, esclient, "gpu_utilization"))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/{metric_name}", handler.GetVMDcgmHandler(config, esclient, vmclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/{metric_name}", handler.GetVMDcgmHandler(config, esclient, vmclient))
 
 	// global node data
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/memory", handler.GetNodeMemoryHandler(config, esclient))
