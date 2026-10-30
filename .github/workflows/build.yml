@@ -30,12 +30,22 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/hpcdata
+          tags: |
+            type=raw,value=${{ env.IMAGE_TAG }}
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
       - name: Build (and push on main)
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
           push: ${{ env.DO_PUSH == 'true' }}
-          tags: ghcr.io/${{ github.repository_owner }}/hpcdata:${{ env.IMAGE_TAG }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
