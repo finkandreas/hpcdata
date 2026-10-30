@@ -59,7 +59,7 @@ def main(metrics_to_plot: list[str] | None = None, max_hole_size: int = -1) -> N
             print('='*30)
             print(f'Fetching: {metric} ...')
             
-            r = requests.get(f"{config['base_url']}/metrics/{cluster}/{jobid}/vm/gpu/{metric}", headers=auth_header)
+            r = requests.get(f"{config['base_url']}/metrics/{cluster}/{jobid}/gpu/{metric}", headers=auth_header)
             r.raise_for_status()
 
             response = r.json()
