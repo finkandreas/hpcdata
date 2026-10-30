@@ -40,8 +40,10 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/hpcdata
           tags: |
-            type=edge,branch=main # the newest version on main
-            type=sha,format=short # commit sha
+            # the newest version on main
+            type=edge,branch=main
+            # commit sha
+            type=sha,format=short
             # Release tag vx.y.z -> x.y.z, x.y, x (as well as latest)
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
