@@ -53,6 +53,8 @@ def main(metrics_to_plot: list[str] | None = None, max_hole_size: int = -1) -> N
                     f"Available metrics:\n  {available}"
                 )
             metrics = {metric: all_dcgm_metrics[metric] for metric in metrics_to_plot}
+        else:
+            metrics = all_dcgm_metrics
 
         for metric in metrics.keys():
 
