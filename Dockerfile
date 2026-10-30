@@ -1,4 +1,4 @@
-FROM docker.io/ubuntu:24.04 as builder
+FROM docker.io/ubuntu:24.04 AS builder
 
 ARG GOLANG_VERSION=1.24
 
