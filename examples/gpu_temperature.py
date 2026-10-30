@@ -5,7 +5,7 @@ import yaml
 import matplotlib.pyplot as plt
 import requests
 
-from common import Config, generate_token
+from common import Config, generate_token, interpolate
 
 if __name__ == '__main__':
     with open(os.path.join(os.path.dirname(__file__), 'config.yaml')) as f:
@@ -17,7 +17,8 @@ if __name__ == '__main__':
         r = requests.get(f'{config['base_url']}/metrics/{cluster}/{jobid}/gpu/temperature', headers=auth_header)
         r.raise_for_status()
 
-        time = [datetime.datetime.fromtimestamp(x) for x in r.json()['time']]
+        response = r.json()
+        time = [datetime.datetime.fromtimestamp(x) for x in response['time']]
         nodeTemps = r.json()['nodes']
 
         fig, ax = plt.subplots()
@@ -26,7 +27,11 @@ if __name__ == '__main__':
 
         for nodeid, nodeTemps in nodeTemps.items():
             for gpuTemps in nodeTemps:
-                ax.plot(time, gpuTemps['temperature'], label=f'GPU {gpuTemps['gpu_id']}')
+                temps_interpolated = interpolate(
+                    y=gpuTemps['temperature'],
+                    x=time,
+                    max_hole_size=5)
+                ax.plot(time, temps_interpolated, label=f'GPU {gpuTemps['gpu_id']}')
             # only plot GPU temperatures of first node
             break
 
