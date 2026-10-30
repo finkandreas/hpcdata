@@ -7,7 +7,7 @@ import argparse
 import matplotlib.pyplot as plt
 import requests
 
-from common import Config, generate_token
+from common import Config, generate_token, interpolate
 
 
 def parse_dcgm_metrics(go_file: str) -> dict[str, str]:
@@ -26,7 +26,11 @@ def parse_dcgm_metrics(go_file: str) -> dict[str, str]:
     return metrics
 
 
-def main(metrics_to_plot: list[str] | None = None) -> None:
+def main(metrics_to_plot: list[str] | None = None, max_hole_size: int = -1) -> None:
+
+    if max_hole_size < -1:
+        raise ValueError(f'Invalid max_hole_size = {max_hole_size}. Should be >=-1.')
+
     with open(os.path.join(os.path.dirname(__file__), 'config.yaml')) as f:
         config: Config = yaml.safe_load(f)
         jobid = config['jobid']
@@ -71,7 +75,14 @@ def main(metrics_to_plot: list[str] | None = None) -> None:
             for nodeid, nodeData in nodes.items():
                 for gpuData in nodeData[metric]:
                     gpu_id = int(gpuData["gpu_id"])
-                    ax.plot(time, gpuData['data'],
+                    if max_hole_size == -1:
+                        data = gpuData['data']
+                    else:
+                        data = interpolate(
+                            y=gpuData['data'],
+                            x=time,
+                            max_hole_size=max_hole_size)
+                    ax.plot(time, data,
                             marker=markers[gpu_id % len(markers)],
                             fillstyle='none',
                             markersize=8,
@@ -94,9 +105,17 @@ def main(metrics_to_plot: list[str] | None = None) -> None:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Plot DCGM metrics from VictoriaMetrics.')
     parser.add_argument(
+        '--max_hole_size',
+        type=int,
+        default=-1,
+        help='Optional maximum hole size to interpolate. If omitted, holes are not interpolated. If 0, all holes are interpolated.'
+    )
+    parser.add_argument(
         '--metrics',
         nargs='*',
         help='Optional space-separated list of DCGM metrics to plot. If omitted, all metrics are plotted.'
     )
     args = parser.parse_args()
-    main(args.metrics)
+    if args.max_hole_size < -1:
+        parser.error('--max_hole_size must be >= -1')
+    main(args.metrics, args.max_hole_size)
