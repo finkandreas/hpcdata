@@ -49,7 +49,7 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 		logger = logging.Get()
 	}
 
-	info, ok := SupportedMetrics[metricName]
+	info, ok := SupportedDCGMMetrics[metricName]
 	if !ok {
 		return nil, fmt.Errorf("Unsupported DCGM metric: %v", metricName)
 	}

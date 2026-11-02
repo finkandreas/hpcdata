@@ -66,7 +66,7 @@ type MetricInfo struct {
 }
 
 // map a short DCGM metric name to its VM full metric name and unit
-var SupportedMetrics = func() map[string]MetricInfo {
+var SupportedDCGMMetrics = func() map[string]MetricInfo {
 	m := make(map[string]MetricInfo, len(dcgmMetrics))
 	for name, unit := range dcgmMetrics {
 		m[name] = MetricInfo{VMMetric: dcgmMetricPrefix + name, Unit: unit}

@@ -32,7 +32,7 @@ func (h vmDcgm) Get(w http.ResponseWriter, r *http.Request) {
 	systemName := vars["system_name"]
 	metricName := vars["metric_name"]
 
-	info, ok := victoriametrics.SupportedMetrics[metricName]
+	info, ok := victoriametrics.SupportedDCGMMetrics[metricName]
 	if !ok {
 		pie(logger.Warn, condition_error{fmt.Sprintf("Unsupported DCGM metric: %v", metricName)}, "", http.StatusBadRequest)
 	}
