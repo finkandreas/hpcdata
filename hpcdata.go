@@ -60,6 +60,10 @@ func main() {
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/gpu/{metric_name}", handler.GetVMDcgmHandler(config, esclient, vmclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/gpu/{metric_name}", handler.GetVMDcgmHandler(config, esclient, vmclient))
 
+	// VictoriaMetrics vmstat metrics
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/{metric_name}", handler.GetVMVmstatHandler(config, esclient, vmclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/{metric_name}", handler.GetVMVmstatHandler(config, esclient, vmclient))
+
 	// global node data
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/memory", handler.GetNodeMemoryHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/memory", handler.GetNodeMemoryHandler(config, esclient))

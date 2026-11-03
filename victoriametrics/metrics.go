@@ -60,6 +60,27 @@ var dcgmMetrics = map[string]string{
 	"nvlink_rx_bytes":                   "B/s",
 }
 
+const vmstatMetricPrefix = "cray_storage.cray_vmstat."
+
+var vmstatMetrics = map[string]string{
+	"cpu_id":    "%",
+	"cpu_sy":    "%",
+	"cpu_us":    "%",
+	"cpu_wa":    "%",
+	"io_bi":     "blocks/s",
+	"io_bo":     "blocks/s",
+	"mem_buff":  "KiB",
+	"mem_cache": "KiB",
+	"mem_free":  "KiB",
+	"mem_swpd":  "KiB",
+	"procs_b":   "count",
+	"procs_r":   "count",
+	"swap_si":   "KiB/s",
+	"swap_so":   "KiB/s",
+	"system_cs": "rate",
+	"system_in": "rate",
+}
+
 type MetricInfo struct {
 	VMMetric string // full Prometheus metric name as stored in VictoriaMetrics
 	Unit     string // metric unit
@@ -70,6 +91,15 @@ var SupportedDCGMMetrics = func() map[string]MetricInfo {
 	m := make(map[string]MetricInfo, len(dcgmMetrics))
 	for name, unit := range dcgmMetrics {
 		m[name] = MetricInfo{VMMetric: dcgmMetricPrefix + name, Unit: unit}
+	}
+	return m
+}()
+
+// map a short vmstat metric name to its VM full metric name and unit
+var SupportedvmstatMetrics = func() map[string]MetricInfo {
+	m := make(map[string]MetricInfo, len(vmstatMetrics))
+	for name, unit := range vmstatMetrics {
+		m[name] = MetricInfo{VMMetric: vmstatMetricPrefix + name, Unit: unit}
 	}
 	return m
 }()
