@@ -134,12 +134,12 @@ type vmstatMetric struct {
 	MetricByNode map[string][]float64 `json:"data"`
 }
 
-func (c *Client) GetvmstatMetric(metricName string, nodes []util.Node, from time.Time, to time.Time, vcluster string, logger *zerolog.Logger) (*vmstatMetric, error) {
+func (c *Client) GetVmstatMetric(metricName string, nodes []util.Node, from time.Time, to time.Time, vcluster string, logger *zerolog.Logger) (*vmstatMetric, error) {
 	if logger == nil {
 		logger = logging.Get()
 	}
 
-	info, ok := SupportedvmstatMetrics[metricName]
+	info, ok := SupportedVmstatMetrics[metricName]
 	if !ok {
 		return nil, fmt.Errorf("Unsupported vmstat metric: %v", metricName)
 	}

@@ -96,7 +96,7 @@ var SupportedDCGMMetrics = func() map[string]MetricInfo {
 }()
 
 // map a short vmstat metric name to its VM full metric name and unit
-var SupportedvmstatMetrics = func() map[string]MetricInfo {
+var SupportedVmstatMetrics = func() map[string]MetricInfo {
 	m := make(map[string]MetricInfo, len(vmstatMetrics))
 	for name, unit := range vmstatMetrics {
 		m[name] = MetricInfo{VMMetric: vmstatMetricPrefix + name, Unit: unit}
