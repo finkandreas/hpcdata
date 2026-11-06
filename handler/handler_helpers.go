@@ -46,7 +46,7 @@ func pie(logFct func() *zerolog.Event, err error, msg string, statuscode int) {
 			msg = err.Error()
 		}
 		if err_herr, canConvert := err.(handler_error); canConvert {
-			logFct().Err(fmt.Errorf(err_herr.logfile_only)).Type("error_type", err_herr).Msg(msg)
+			logFct().Err(errors.New(err_herr.logfile_only)).Type("error_type", err_herr).Msg(msg)
 		} else {
 			logFct().Err(err).Type("error_type", err).Msg(msg)
 		}
