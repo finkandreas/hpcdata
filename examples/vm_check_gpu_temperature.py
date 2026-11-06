@@ -24,7 +24,7 @@ if __name__ == '__main__':
         auth_header = {'Authorization': f'Bearer {token}'}
 
         es_url = f"{config['base_url']}/metrics/{cluster}/{jobid}/gpu/temperature"
-        vm_url = f"{config['base_url']}/metrics/{cluster}/{jobid}/vm/gpu/{metric}"
+        vm_url = f"{config['base_url']}/metrics/{cluster}/{jobid}/gpu/{metric}"
 
         es_data = fetch(es_url, auth_header)
         vm_data = fetch(vm_url, auth_header)

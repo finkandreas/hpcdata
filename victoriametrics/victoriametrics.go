@@ -19,18 +19,6 @@ import (
 
 const wanted_num_timestamps = 5000
 
-type MetricInfo struct {
-	VMMetric string // full Prometheus metric name as stored in VictoriaMetrics
-	Unit     string // metric unit
-}
-
-var SupportedMetrics = map[string]MetricInfo{
-	"gpu_temp":        {VMMetric: "cray_storage.dcgm.gpu_temp", Unit: "°C"},
-	"memory_temp":     {VMMetric: "cray_storage.dcgm.memory_temp", Unit: "°C"},
-	"power_usage":     {VMMetric: "cray_storage.dcgm.power_usage", Unit: "W"},
-	"gpu_utilization": {VMMetric: "cray_storage.dcgm.gpu_utilization", Unit: "%"},
-}
-
 type Client struct {
 	baseURL string
 	token   string
@@ -61,7 +49,7 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 		logger = logging.Get()
 	}
 
-	info, ok := SupportedMetrics[metricName]
+	info, ok := SupportedDCGMMetrics[metricName]
 	if !ok {
 		return nil, fmt.Errorf("Unsupported DCGM metric: %v", metricName)
 	}
