@@ -53,14 +53,14 @@ func (h vmVmstat) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vmstatData, err := h.vmclient.GetVmstatMetric(metricName, nodes, from, to, cluster_config.Name, logger)
-	pie(logger.Error, err, fmt.Sprintf("Failed getting DCGM metric %v", metricName), http.StatusInternalServerError)
+	pie(logger.Error, err, fmt.Sprintf("Failed getting vmstat metric %v", metricName), http.StatusInternalServerError)
 
 	ret := struct {
 		Time  []epochTime               `json:"time"`
 		Nodes map[string]map[string]any `json:"nodes"`
 	}{as_epoch_array(vmstatData.Time), map[string]map[string]any{}}
-	for nid, dcgmMetric := range vmstatData.MetricByNode {
-		ret.Nodes[nid] = map[string]any{metricName: dcgmMetric, fmt.Sprintf("%v_unit", metricName): info.Unit}
+	for nid, vmstatMetric := range vmstatData.MetricByNode {
+		ret.Nodes[nid] = map[string]any{metricName: vmstatMetric, fmt.Sprintf("%v_unit", metricName): info.Unit}
 	}
 
 	write_bytes, err := json.Marshal(ret)
