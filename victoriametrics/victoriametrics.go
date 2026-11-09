@@ -129,6 +129,86 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 	return &ret, nil
 }
 
+type vmstatMetric struct {
+	Time         []time.Time
+	MetricByNode map[string][]float64
+}
+
+func (c *Client) GetVmstatMetric(metricName string, nodes []util.Node, from time.Time, to time.Time, vcluster string, logger *zerolog.Logger) (*vmstatMetric, error) {
+	if logger == nil {
+		logger = logging.Get()
+	}
+
+	info, ok := SupportedVmstatMetrics[metricName]
+	if !ok {
+		return nil, fmt.Errorf("Unsupported vmstat metric: %v", metricName)
+	}
+
+	step := getStep(from, to, 10*time.Second) // [TO DO] avoid hard-coding the step duration
+	query := buildNodeRegexQuery(info.VMMetric, vcluster, nodes)
+
+	logger.Debug().Msgf("VictoriaMetrics metric=%v query=%v start=%v end=%v step=%v", metricName, query, from.Unix(), to.Unix(), step)
+
+	resp, err := c.queryRange(query, from, to, step, logger)
+	if err != nil {
+		return nil, fmt.Errorf("Failed querying VictoriaMetrics for metric %v: %w", metricName, err)
+	}
+
+	stepDuration, err := time.ParseDuration(step)
+	if err != nil {
+		return nil, fmt.Errorf("Failed parsing step duration %v: %w", step, err)
+	}
+
+	ret := vmstatMetric{MetricByNode: map[string][]float64{}}
+
+	if len(resp.Data.Result) == 0 {
+		return &ret, nil
+	}
+
+	// Build a time grid aligned to the requested step
+	numPoints := int(to.Sub(from).Seconds()/stepDuration.Seconds()) + 1
+	ret.Time = make([]time.Time, numPoints)
+	for i := range numPoints {
+		ret.Time[i] = from.Add(time.Duration(i) * stepDuration)
+	}
+
+	for _, series := range resp.Data.Result {
+		hostname := series.Metric["hostname"]
+
+		ret.MetricByNode[hostname] = make([]float64, numPoints)
+
+		for _, pair := range series.Values {
+			if len(pair) != 2 {
+				continue
+			}
+			tsFloat, ok := pair[0].(float64)
+			if !ok {
+				logger.Warn().Msgf("Failed parsing timestamp %v as float64 from type %T, skipping sample", pair[0], pair[0])
+				continue
+			}
+			valStr, ok := pair[1].(string)
+			if !ok {
+				logger.Warn().Msgf("Failed parsing value %v as string from type %T, skipping sample", pair[1], pair[1])
+				continue
+			}
+			val, err := strconv.ParseFloat(valStr, 64)
+			if err != nil {
+				logger.Warn().Msgf("Failed parsing value %v as float64, skipping sample", valStr)
+				continue
+			}
+			ts := time.Unix(int64(tsFloat), 0)
+			idx := int(ts.Sub(from).Seconds() / stepDuration.Seconds())
+			if idx >= 0 && idx < numPoints {
+				ret.MetricByNode[hostname][idx] = val
+			} else {
+				logger.Warn().Msgf("Time index %v falling out of bounds [%v, %v)", idx, 0, numPoints)
+			}
+		}
+	}
+
+	return &ret, nil
+}
+
 func (c *Client) queryRange(query string, from time.Time, to time.Time, step string, logger *zerolog.Logger) (*queryResponse, error) {
 	if logger == nil {
 		logger = logging.Get()
@@ -154,6 +234,9 @@ func (c *Client) queryRange(query string, from time.Time, to time.Time, step str
 	if err := util.CheckResponse(resp); err != nil {
 		return nil, err
 	}
+
+	// log the entire response [!! only for debugging !!]
+	//logger.Debug().Msgf("VictoriaMetrics query_range response: %v", string(resp.ResponseData))
 
 	var parsed queryResponse
 	if err := json.Unmarshal(resp.ResponseData, &parsed); err != nil {
