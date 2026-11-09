@@ -77,8 +77,8 @@ var vmstatMetrics = map[string]string{
 	"procs_r":   "count",
 	"swap_si":   "KiB/s",
 	"swap_so":   "KiB/s",
-	"system_cs": "rate",
-	"system_in": "rate",
+	"system_cs": "/s",
+	"system_in": "/s",
 }
 
 type MetricInfo struct {
