@@ -7,23 +7,7 @@ import argparse
 import matplotlib.pyplot as plt
 import requests
 
-from common import Config, generate_token, interpolate
-
-
-def parse_vmstat_metrics(go_file: str) -> dict[str, str]:
-    """Parse the vmstatMetrics map from the Go source file."""
-    metrics: dict[str, str] = {}
-    with open(go_file) as f:
-        content = f.read()
-
-    match = re.search(r'var\s+vmstatMetrics\s+=\s+map\[string\]string\{([^}]*)\}', content, re.DOTALL)
-    if not match:
-        raise RuntimeError('vmstatMetrics map not found in ' + go_file)
-
-    for key, value in re.findall(r'"([^"]+)"\s*:\s*"([^"]*)"', match.group(1)):
-        metrics[key] = '' if value in ['count', 'gauge'] else f' ({value})'
-
-    return metrics
+from common import Config, generate_token, interpolate, parse_vm_metrics
 
 
 def main(metrics_to_plot: list[str] | None = None, max_hole_size: int = -1) -> None:
@@ -39,7 +23,8 @@ def main(metrics_to_plot: list[str] | None = None, max_hole_size: int = -1) -> N
         auth_header = {'Authorization': f'Bearer {token}'}
 
         # pipe all vmstat metrics from hpcdata/victoriametrics/metrics.go into a dict
-        all_vmstat_metrics = parse_vmstat_metrics(
+        all_vmstat_metrics = parse_vm_metrics(
+            'vmstat',
             os.path.join(os.path.dirname(__file__), '..', 'victoriametrics', 'metrics.go')
         )
 
