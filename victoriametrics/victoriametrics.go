@@ -131,7 +131,7 @@ func (c *Client) GetDcgmMetric(metricName string, nodes []util.Node, from time.T
 
 type vmstatMetric struct {
 	Time         []time.Time
-	MetricByNode map[string][]float64 `json:"data"`
+	MetricByNode map[string][]float64
 }
 
 func (c *Client) GetVmstatMetric(metricName string, nodes []util.Node, from time.Time, to time.Time, vcluster string, logger *zerolog.Logger) (*vmstatMetric, error) {
