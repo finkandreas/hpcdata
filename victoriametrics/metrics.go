@@ -86,20 +86,14 @@ type MetricInfo struct {
 	Unit     string // metric unit
 }
 
-// map a short DCGM metric name to its VM full metric name and unit
-var SupportedDCGMMetrics = func() map[string]MetricInfo {
-	m := make(map[string]MetricInfo, len(dcgmMetrics))
-	for name, unit := range dcgmMetrics {
-		m[name] = MetricInfo{VMMetric: dcgmMetricPrefix + name, Unit: unit}
+// map short metric names to full VictoriaMetrics metric names and units
+func buildSupportedMetrics(prefix string, metrics map[string]string) map[string]MetricInfo {
+	m := make(map[string]MetricInfo, len(metrics))
+	for name, unit := range metrics {
+		m[name] = MetricInfo{VMMetric: prefix + name, Unit: unit}
 	}
 	return m
-}()
+}
 
-// map a short vmstat metric name to its VM full metric name and unit
-var SupportedVmstatMetrics = func() map[string]MetricInfo {
-	m := make(map[string]MetricInfo, len(vmstatMetrics))
-	for name, unit := range vmstatMetrics {
-		m[name] = MetricInfo{VMMetric: vmstatMetricPrefix + name, Unit: unit}
-	}
-	return m
-}()
+var SupportedDCGMMetrics = buildSupportedMetrics(dcgmMetricPrefix, dcgmMetrics)
+var SupportedVmstatMetrics = buildSupportedMetrics(vmstatMetricPrefix, vmstatMetrics)
