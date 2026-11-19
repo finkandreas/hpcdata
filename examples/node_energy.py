@@ -15,7 +15,7 @@ if __name__ == '__main__':
         cluster = config['cluster']
         token = generate_token(config)
         auth_header = {'Authorization': f'Bearer {token}'}
-        r = requests.get(f'{config['base_url']}/metrics/{cluster}/{jobid}/node/energy', headers=auth_header)
+        r = requests.get(f'{config['base_url']}/metrics/{cluster}/{jobid}/nodeE/energy/vm', headers=auth_header)
         r.raise_for_status()
 
         time = [datetime.datetime.fromtimestamp(x) for x in r.json()['time']]

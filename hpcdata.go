@@ -64,15 +64,25 @@ func main() {
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/{metric_name}", handler.GetVMVmstatHandler(config, esclient, vmclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/{metric_name}", handler.GetVMVmstatHandler(config, esclient, vmclient))
 
+	// VictoriaMetrics chassis energy / power
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/nodeE/energy/vm", handler.GetVMChassisEnergyHandler(config, esclient, vmclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/nodeE/energy/vm", handler.GetVMChassisEnergyHandler(config, esclient, vmclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/nodeE/power/vm", handler.GetVMChassisPowerHandler(config, esclient, vmclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/nodeE/power/vm", handler.GetVMChassisPowerHandler(config, esclient, vmclient))
+
+	// VictoriaMetrics per-sensor energy / power (indexed series)
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/energypower/{kind}", handler.GetVMSensorHandler(config, esclient, vmclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/energypower/{kind}", handler.GetVMSensorHandler(config, esclient, vmclient))
+
 	// global node data
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/memory", handler.GetNodeMemoryHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/memory", handler.GetNodeMemoryHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/cpu", handler.GetNodeCpuHandler(config, esclient))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/cpu", handler.GetNodeCpuHandler(config, esclient))
-	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/energy", handler.GetChassisEnergyHandler(config, esclient))
-	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/energy", handler.GetChassisEnergyHandler(config, esclient))
-	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/node/power", handler.GetChassisPowerHandler(config, esclient))
-	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/node/power", handler.GetChassisPowerHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/nodeE/energy", handler.GetChassisEnergyHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/nodeE/energy", handler.GetChassisEnergyHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/nodeE/power", handler.GetChassisPowerHandler(config, esclient))
+	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/nodeE/power", handler.GetChassisPowerHandler(config, esclient))
 
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))
 	reqHandler.HandleFunc("/metrics/{system_name}/{job_id}/{node_id}/custom", handler.GetCustomMetricHandler(config, esclient, &db))

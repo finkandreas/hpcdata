@@ -97,3 +97,6 @@ func buildSupportedMetrics(prefix string, metrics map[string]string) map[string]
 
 var SupportedDCGMMetrics = buildSupportedMetrics(dcgmMetricPrefix, dcgmMetrics)
 var SupportedVmstatMetrics = buildSupportedMetrics(vmstatMetricPrefix, vmstatMetrics)
+
+var SupportedChassisEnergyMetric = MetricInfo{VMMetric: "cray_telemetry_energy", Unit: "J"}
+var SupportedChassisPowerMetric = MetricInfo{VMMetric: "cray_telemetry_power", Unit: "W"}
