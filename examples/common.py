@@ -2,6 +2,8 @@ from typing import cast, TypedDict, Optional, Sequence, Union
 from datetime import datetime
 
 import requests
+import re
+
 
 class Config(TypedDict):
     base_url: str
@@ -105,3 +107,18 @@ def interpolate(
             result[j] = v_left + slope * (t[j] - t_left)
 
     return result
+
+def parse_vm_metrics(metric_source : str, go_file: str) -> dict[str, str]:
+    """
+    Parse the <metric_source>Metrics map from the Go source file.
+    """
+    metrics: dict[str, str] = {}
+    with open(go_file) as f:
+        content = f.read()
+    pattern = r'var\s+' + f'{metric_source}Metrics' + r'\s+=\s+map\[string\]string\{([^}]*)\}'
+    match = re.search(pattern, content, re.DOTALL)
+    if not match:
+        raise RuntimeError(f'{metric_source}Metrics map not found in ' + go_file)
+    for key, value in re.findall(r'"([^"]+)"\s*:\s*"([^"]*)"', match.group(1)):
+        metrics[key] = '' if value in ['count', 'gauge'] else f' ({value})'
+    return metrics
