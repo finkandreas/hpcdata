@@ -25,7 +25,8 @@ def main(metrics_to_plot: list[str] | None = None) -> None:
                               'cpu_power': 'W',
                               'cpu_subsystem_power': 'W',
                               'cpu_subsystem_energy': 'J',
-                              'aux_power': 'W'}
+                              'aux_power': 'W',
+                              'vr_output_node_power': 'W'}
 
         # filter to requested metrics, if any were provided
         if metrics_to_plot:

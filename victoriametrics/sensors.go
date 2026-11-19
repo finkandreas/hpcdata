@@ -84,6 +84,12 @@ var supportedSensorKinds = map[string]sensorKind{
 		unit:     "W",
 		minStep:  5 * time.Second,
 	},
+	"vr_output_node_power": {
+		metric:   SupportedChassisPowerMetric.VMMetric,
+		selector: `,parental_context="Chassis",physical_context="VoltageRegulator",physical_subcontext="Output",index="0"`,
+		unit:     "W",
+		minStep:  5 * time.Second,
+	},
 }
 
 func SensorKindExists(kind string) bool {
